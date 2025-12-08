@@ -16,8 +16,14 @@ find_package(Qt6 COMPONENTS
 
 add_executable(My2FA main.cpp
         src/My2FA_Server/server.cpp
-        src/Command_Layer/Command.hpp
-        src/Command_Layer/Base/CommandTypes.hpp)
+        src/Command_Layer/Base/Command.hpp
+        src/Command_Layer/Base/CommandTypes.hpp
+        src/Command_Layer/CommandFactory.cpp
+        src/Command_Layer/CommandFactory.hpp
+        src/Command_Layer/System_Commands/ConnCommand.hpp
+        src/Command_Layer/System_Commands/PingCommand.hpp
+        src/Command_Layer/System_Commands/ErrCommand.hpp
+)
 target_link_libraries(My2FA
         Qt::Core
         Qt::Gui
