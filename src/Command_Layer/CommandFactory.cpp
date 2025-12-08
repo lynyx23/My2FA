@@ -2,6 +2,23 @@
 #include <sstream>
 #include "Base/Command.hpp"
 #include "CommandFactory.hpp"
+#include "System_Commands/ConnectCommand.hpp"
+#include "System_Commands/PingCommand.hpp"
+#include "System_Commands/ErrorCommand.hpp"
+#include "Credential_Login/LoginRequestCommand.hpp"
+#include "Credential_Login/LoginResponseCommand.hpp"
+#include "Notification_Login/RequestNotificationClientCommand.hpp"
+#include "Notification_Login/RequestNotificationServerCommand.hpp"
+#include "Notification_Login/NotificationResponseClientCommand.hpp"
+#include "Notification_Login/NotificationResponseServerCommand.hpp"
+#include "Code_Login/RequestCodeClientCommand.hpp"
+#include "Code_Login/CodeResponseCommand.hpp"
+#include "Code_Login/ValidateCodeClientCommand.hpp"
+#include "Code_Login/ValidateCodeServerCommand.hpp"
+#include "Code_Login/ValidateResponseClientCommand.hpp"
+#include "Code_Login/ValidateResponseServerCommand.hpp"
+#include "Notification_Login/SendNotificationCommand.hpp"
+
 
 // Hleper function to split command string into command and argument tokens
 static std::vector<std::string> split(const std::string &s) {
@@ -15,89 +32,94 @@ static std::vector<std::string> split(const std::string &s) {
 }
 
 std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
-    const std::vector<std::string> tokens = split(data);
+    const std::vector<std::string> args = split(data);
+    if(args.empty()) return nullptr;
+    int type_int = std::stoi(args[0]);
 
-    if(tokens.empty()) return nullptr;
-    int type_int = std::stoi(tokens[0]);
     switch (auto type_cmd = static_cast<CommandType>(type_int)) {
         case CommandType::CONN:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                return std::make_unique<ConnectCommand>(args[1], args[2]);
             }
             break;
         case CommandType::PING:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 1) {
+                return std::make_unique<PingCommand>();
             }
             break;
         case CommandType::ERR:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                return std::make_unique<ErrorCommand>(stoi(args[1]), args[2]);
             }
             break;
         case CommandType::LOGIN_REQ:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                return std::make_unique<LoginRequestCommand>(args[1], args[2]);
             }
             break;
         case CommandType::LOGIN_RESP:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                bool resp = (args[1] == "1");
+                return std::make_unique<LoginResponseCommand>(resp, args[2]);
             }
             break;
         case CommandType::REQ_NOTIF_CLIENT:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 2) {
+                return std::make_unique<RequestNotificationClientCommand>(args[1]);
             }
             break;
         case CommandType::REQ_NOTIF_SERVER:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                return std::make_unique<RequestNotificationServerCommand>(args[1], stoi(args[2]));
             }
             break;
         case CommandType::SEND_NOTIF:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 2) {
+                return std::make_unique<SendNotificationCommand>(stoi(args[1]));
             }
             break;
         case CommandType::NOTIF_RESP_CLIENT:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                bool resp = (args[1] == "1");
+                return std::make_unique<NotificationResponseClientCommand>(resp, stoi(args[2]));
             }
             break;
         case CommandType::NOTIF_RESP_SERVER:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                bool resp = (args[1] == "1");
+                return std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
             }
             break;
         case CommandType::REQ_CODE_CLIENT:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                return std::make_unique<RequestCodeClientCommand>(args[1], stoi(args[2]));
             }
             break;
         case CommandType::CODE_RESP:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 2) {
+                return std::make_unique<CodeResponseCommand>(stoi(args[1]));
             }
             break;
         case CommandType::VALIDATE_CODE_CLIENT:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                return std::make_unique<ValidateCodeClientCommand>(stoi(args[1]), args[2]);
             }
             break;
         case CommandType::VALIDATE_CODE_SERVER:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 4) {
+                return std::make_unique<ValidateCodeServerCommand>(stoi(args[1]), args[2], stoi(args[3]));
             }
             break;
         case CommandType::VALIDATE_RESP_SERVER:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 4) {
+                bool resp = (args[1] == "1");
+                return std::make_unique<ValidateResponseServerCommand>(resp, args[2], stoi(args[3]));
             }
             break;
         case CommandType::VALIDATE_RESP_CLIENT:
-            if (tokens.size() == 3) {
-
+            if (args.size() == 3) {
+                bool resp = (args[1] == "1");
+                return std::make_unique<ValidateResponseClientCommand>(resp, args[2]);
             }
             break;
         default:
