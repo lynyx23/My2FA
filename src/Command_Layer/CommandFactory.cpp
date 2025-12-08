@@ -25,11 +25,6 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
 
             }
             break;
-        case CommandType::ACK:
-            if (tokens.size() == 3) {
-
-            }
-            break;
         case CommandType::PING:
             if (tokens.size() == 3) {
 

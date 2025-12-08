@@ -20,9 +20,22 @@ add_executable(My2FA main.cpp
         src/Command_Layer/Base/CommandTypes.hpp
         src/Command_Layer/CommandFactory.cpp
         src/Command_Layer/CommandFactory.hpp
-        src/Command_Layer/System_Commands/ConnCommand.hpp
+        src/Command_Layer/System_Commands/ConnectCommand.hpp
         src/Command_Layer/System_Commands/PingCommand.hpp
-        src/Command_Layer/System_Commands/ErrCommand.hpp
+        src/Command_Layer/System_Commands/ErrorCommand.hpp
+        src/Command_Layer/Credential_Login/LoginRequestCommand.hpp
+        src/Command_Layer/Credential_Login/LoginResponseCommand.hpp
+        src/Command_Layer/Notification_Login/RequestNotificationClientCommand.hpp
+        src/Command_Layer/Notification_Login/RequestNotificationServerCommand.hpp
+        src/Command_Layer/Notification_Login/SendNotificationCommand.hpp
+        src/Command_Layer/Notification_Login/NotificationResponseClientCommand.hpp
+        src/Command_Layer/Notification_Login/NotificationResponseServerCommand.hpp
+        src/Command_Layer/Code_Login/RequestCodeClientCommand.hpp
+        src/Command_Layer/Code_Login/CodeResponseCommand.hpp
+        src/Command_Layer/Code_Login/ValidateCodeClientCommand.hpp
+        src/Command_Layer/Code_Login/ValidateCodeServerCommand.hpp
+        src/Command_Layer/Code_Login/ValidateResponseServerCommand.hpp
+        src/Command_Layer/Code_Login/ValidateResponseClientCommand.hpp
 )
 target_link_libraries(My2FA
         Qt::Core
