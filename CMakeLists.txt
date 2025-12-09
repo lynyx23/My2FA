@@ -15,7 +15,7 @@ find_package(Qt6 COMPONENTS
         REQUIRED)
 
 add_executable(My2FA main.cpp
-        src/My2FA_Server/server.cpp
+        src/My2FA_Server/AuthServer.cpp
         src/Command_Layer/Base/Command.hpp
         src/Command_Layer/Base/CommandTypes.hpp
         src/Command_Layer/CommandFactory.cpp
