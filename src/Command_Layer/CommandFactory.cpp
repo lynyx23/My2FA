@@ -12,7 +12,12 @@
 std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
     const std::vector<std::string> args = split(data);
     if(args.empty()) return nullptr;
-    int type_int = std::stoi(args[0]);
+    int type_int;
+    try {
+        type_int = std::stoi(args[0]);
+    } catch (...) {
+        return nullptr;
+    }
 
     switch (auto type_cmd = static_cast<CommandType>(type_int)) {
         case CommandType::CONN:

@@ -14,17 +14,6 @@
 
 #define PORT 27701
 
-// Local help command
-void printHelp() {
-    std::cout << "  help                   : Show this menu\n"
-              << "  conn <id>              : Handshake (e.g. conn;12)\n"
-              << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
-              << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
-              << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
-              << "  exit                   : Quit\n"
-    ;
-}
-
 void handleUserInput(int sock, const std::string& input) {
     auto args = split(input);
     if (args.empty()) return;
@@ -32,11 +21,17 @@ void handleUserInput(int sock, const std::string& input) {
     std::unique_ptr<Command> command = nullptr;
     // note: switch won't work with strings
     if (args[0] == "help") {
-        printHelp();
+        std::cout << "  help                   : Show this menu\n"
+                  << "  conn <id>              : Handshake (e.g. conn;12)\n"
+                  << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
+                  << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
+                  << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
+                  << "  exit                   : Quit\n"
+        ;
         return;
     }
     else if (args[0] == "exit") {
-        exit(0);
+         exit(0);
     }
     else if (args[0] == "conn") {
         if (args.size() != 2) { std::cout << "[AC Error] Incorrect format: conn <id>\n "; return; }
@@ -52,7 +47,7 @@ void handleUserInput(int sock, const std::string& input) {
     }
     else if (args[0] == "code") {
         if (args.size() != 3) { std::cout << "[AC Error] Incorrect format: code <uuid> <appid>\n "; return; }
-        command = std::make_unique<RequestCodeClientCommand>(args[1], std::stoi(args[2]));
+        command = std::make_unique<RequestCodeClientCommand>(args[1], std::stoi(args[2])); //implement error catch for stoi
     }
     else {
         std::cout << "[AC Error] Unknown command! Type help.\n ";
@@ -67,11 +62,11 @@ void handleUserInput(int sock, const std::string& input) {
 }
 
 int main() {
-    int sock = 0;
+    int client_socket = 0;
     struct sockaddr_in serv_addr;
     char buffer[1024] = {0};
 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("[AC Error] Socket creation error");
         return -1;
     }
@@ -80,12 +75,12 @@ int main() {
     serv_addr.sin_port = htons(PORT);
 
     if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-        perror("[AC Error] Invalid address");
+        perror("[AC Errror] Invalid address");
         return -1;
     }
 
     std::cout << "[AC Log] Connecting to Auth Server on port " << PORT << "...\n";
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    if (connect(client_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("[AC Error] Connection Failed");
         return -1;
     }
@@ -96,9 +91,9 @@ int main() {
     while (true) {
         FD_ZERO(&read_set);
         FD_SET(STDIN_FILENO, &read_set);
-        FD_SET(sock, &read_set);
+        FD_SET(client_socket, &read_set);
 
-        int activity = select(sock + 1, &read_set, NULL, NULL, NULL);
+        int activity = select(client_socket + 1, &read_set, NULL, NULL, NULL);
 
         if (activity < 0) {
             std::cout << "[AC Error] Select error\n";
@@ -109,22 +104,37 @@ int main() {
             std::string input;
             std::getline(std::cin, input);
             if (!input.empty()) {
-                handleUserInput(sock, input);
+                handleUserInput(client_socket, input);
             }
         }
 
-        if (FD_ISSET(sock, &read_set)) {
+        if (FD_ISSET(client_socket, &read_set)) {
             memset(buffer, 0, 1024);
-            int valread = read(sock, buffer, 1024);
+            int valread = read(client_socket, buffer, 1024);
             if (valread == 0) {
                 std::cout << "\n[AC Log] Server disconnected.\n";
                 break;
-            } else {
+            }
+
+            std::string data(buffer, valread);
+            std::unique_ptr<Command> command = CommandFactory::create(data);
+            try {
+                command = CommandFactory::create(data);
+            } catch (...) {
+                command = nullptr;
+            }
+            if (command) {
+                const auto* cmd = dynamic_cast<const SendNotificationCommand*>(command.get());
+                std::stringstream ss;
+                ss << "[AC Log] Received command SEND_NOTIF: appID =" << cmd->getAppid();
+                std::cout << ss.str() << "\n";
+            }
+            else {
                 std::cout << "[AS Response] " << buffer << "\n";
             }
         }
     }
 
-    close(sock);
+    close(client_socket);
     return 0;
 }

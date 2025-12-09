@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h>
+#include <iostream>
 
 #include "../Command_Layer/CommandFactory.hpp"
 #include "../Command_Layer/System_Commands/SystemCommands.hpp"
@@ -15,9 +16,11 @@
 #include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
 #include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
 
-#define PORT 27701 // AuthServer port
+#define PORT 27701 // Auth port
 #define MAX_CLIENTS 30
 #define BUFFER_SIZE 1024
+
+int client_socket[MAX_CLIENTS] = {0};
 
 void error_exit(const char *msg) {
     perror(msg);
@@ -25,17 +28,17 @@ void error_exit(const char *msg) {
 }
 
 std::string handleCommand(const std::unique_ptr<Command>& command) {
-    std::stringstream ss;
+    std::ostringstream ss;
     switch(command.get()->getType()) {
         case CommandType::CONN: {
             const auto* cmd = dynamic_cast<const ConnectCommand*>(command.get());
-            ss << "Received command CONN: Type = " << static_cast<int>(cmd->getType())
+            ss << "Received command CONN: Type = " << cmd->getConnectionType()
                 <<" , ID = " << cmd->getId();
             break;
         }
         case CommandType::ERR: {
             const auto* cmd = dynamic_cast<const ErrorCommand*>(command.get());
-            ss << "Received command ERR: Type = " << static_cast<int>(cmd->getCode())
+            ss << "Received command ERR: Type = " << cmd->getCode()
                 << " , Msg = " << cmd->getMessage();
             break;
         }
@@ -78,10 +81,63 @@ std::string handleCommand(const std::unique_ptr<Command>& command) {
     return ss.str();
 }
 
+void handleUserInput(int server_socket, std::string input) {
+    auto args = split(input); // Assuming you add the splitInput helper function
+    if (args.empty()) return;
+
+    if (args[0] == "help") {
+        std::cout << "  clients          : List all active client file descriptors.\n"
+                  << "  send_notif <sd>  : Sends a test notification to socket <sd>.\n"
+                  << "  exit             : Shut down the server.\n"
+        ;
+    }
+    else if (args[0] == "clients") {
+        std::cout << "[AS Log] Active Sockets: ";
+        bool found = false;
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (client_socket[i] > 0) {
+                std::cout << client_socket[i] << " ";
+                found = true;
+            }
+        }
+        if (!found) std::cout << "None.";
+        std::cout << "\n";
+    }
+    else if (args[0] == "send_notif") {
+        if (args.size() != 2) {
+            std::cout << "[AS Error] Usage: send_notif <socket_descriptor_id>\n";
+            return;
+        }
+        try {
+            int target_sd = std::stoi(args[1]);
+
+            // Generate a sample notification command (23;APPID)
+            SendNotificationCommand notif(99); // AppID 99
+            std::string data = notif.serialize();
+
+            // Send the command
+            if (send(target_sd, data.c_str(), data.length(), 0) > 0) {
+                std::cout << "[AS Send] Sent test notification (23) to SD " << target_sd << "\n";
+            } else {
+                std::cerr << "[AS Error] Failed to send to socket " << target_sd << "\n";
+            }
+        } catch (...) {
+            std::cerr << "[AS Error] Invalid socket ID provided.\n";
+        }
+    }
+    else if (args[0] == "exit") {
+        std::cout << "[AS Log] Shutting down...\n";
+        close(server_socket);
+        exit(0);
+    }
+    else {
+        std::cout << "[AS Error] Unknown command. Type 'help'.\n";
+    }
+}
+
 int main(int argc, char *argv[]) {
-    int server_socket, new_socket, activity, valread;
+    int server_socket, new_socket;
     int addrlen, sd;
-    int client_socket[MAX_CLIENTS] = {0};
     int max_sd;
 
     struct sockaddr_in address;
@@ -110,6 +166,7 @@ int main(int argc, char *argv[]) {
         error_exit("listen");
     }
 
+    std::cout << "[AS Log] Auth Server started! Type help for commands.\n";
     std::cout << "[AS Log] Auth Server listening on port: " << PORT << "\n";
 
     FD_ZERO(&master_set);
@@ -118,6 +175,7 @@ int main(int argc, char *argv[]) {
 
     while (true) {
         read_set = master_set;
+        FD_SET(STDIN_FILENO, &read_set);
 
         // Recalculating max_sd for every loop iteration to avoid client disconnect issues
         max_sd = server_socket;
@@ -127,11 +185,21 @@ int main(int argc, char *argv[]) {
                 max_sd = sd;
             }
         }
+        if (STDIN_FILENO > max_sd) max_sd = STDIN_FILENO;
 
-        activity = select(max_sd + 1, &read_set, NULL, NULL, NULL);
+        int activity = select(max_sd + 1, &read_set, NULL, NULL, NULL);
 
         if ((activity < 0)) {
             std::cout << "Select error: " << "\n";
+            continue;
+        }
+
+        if (FD_ISSET(STDIN_FILENO, &read_set)) {
+            std::string input;
+            std::getline(std::cin, input);
+            if (!input.empty()) {
+                handleUserInput(server_socket, input);
+            }
             continue;
         }
 
@@ -157,7 +225,7 @@ int main(int argc, char *argv[]) {
 
             if (sd > 0 && FD_ISSET(sd, &read_set)) {
                 memset(buffer, 0, BUFFER_SIZE);
-                valread = read(sd, buffer, BUFFER_SIZE - 1);
+                int valread = read(sd, buffer, BUFFER_SIZE - 1);
 
                 if (valread == 0) {
                     // Getting the address of this connection
