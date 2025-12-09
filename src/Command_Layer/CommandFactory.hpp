@@ -1,7 +1,7 @@
 #ifndef MY2FA_COMMANDFACTORY_HPP
 #define MY2FA_COMMANDFACTORY_HPP
 #include <memory>
-
+#include <string>
 #include "Base/Command.hpp"
 
 class CommandFactory {

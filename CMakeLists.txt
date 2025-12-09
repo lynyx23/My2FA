@@ -14,36 +14,60 @@ find_package(Qt6 COMPONENTS
         Widgets
         REQUIRED)
 
-add_executable(My2FA main.cpp
-        src/My2FA_Server/AuthServer.cpp
+# Shared CommandLayer library so that we don't build it or write the config multiple times
+add_library(CommandLayerLib STATIC
+        src/Command_Layer/CommandFactory.hpp
+        src/Command_Layer/CommandFactory.cpp
+
         src/Command_Layer/Base/Command.hpp
         src/Command_Layer/Base/CommandTypes.hpp
-        src/Command_Layer/CommandFactory.cpp
-        src/Command_Layer/CommandFactory.hpp
+
+        src/Command_Layer/System_Commands/SystemCommands.hpp
         src/Command_Layer/System_Commands/ConnectCommand.hpp
-        src/Command_Layer/System_Commands/PingCommand.hpp
         src/Command_Layer/System_Commands/ErrorCommand.hpp
+        src/Command_Layer/System_Commands/PingCommand.hpp
+
+        src/Command_Layer/Credential_Login/CredentialLoginCommands.hpp
         src/Command_Layer/Credential_Login/LoginRequestCommand.hpp
         src/Command_Layer/Credential_Login/LoginResponseCommand.hpp
+
+        src/Command_Layer/Notification_Login/NotificationLoginCommands.hpp
         src/Command_Layer/Notification_Login/RequestNotificationClientCommand.hpp
         src/Command_Layer/Notification_Login/RequestNotificationServerCommand.hpp
         src/Command_Layer/Notification_Login/SendNotificationCommand.hpp
         src/Command_Layer/Notification_Login/NotificationResponseClientCommand.hpp
         src/Command_Layer/Notification_Login/NotificationResponseServerCommand.hpp
+
+        src/Command_Layer/Code_Login/CodeLoginCommands.hpp
         src/Command_Layer/Code_Login/RequestCodeClientCommand.hpp
         src/Command_Layer/Code_Login/CodeResponseCommand.hpp
         src/Command_Layer/Code_Login/ValidateCodeClientCommand.hpp
         src/Command_Layer/Code_Login/ValidateCodeServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseClientCommand.hpp
-        src/Command_Layer/Code_Login/CodeLoginCommands.hpp
-        src/Command_Layer/Credential_Login/CredentialLoginCommands.hpp
-        src/Command_Layer/Notification_Login/NotificationLoginCommands.hpp
-        src/Command_Layer/System_Commands/SystemCommands.hpp
-)
-target_link_libraries(My2FA
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
 )
 
+target_include_directories(CommandLayerLib PUBLIC src)
+
+target_link_libraries(CommandLayerLib PRIVATE Qt::Core)
+
+# AS executable
+add_executable(AuthServer
+        src/My2FA_Server/AuthServer.cpp
+)
+
+# Link to the lib for AS
+target_link_libraries(AuthServer PRIVATE
+        CommandLayerLib
+        Qt::Core
+)
+
+# Test Client
+#add_executable(TestClient
+#        src/Test_Client/TestClient.cpp
+#)
+#
+#target_link_libraries(TestClient PRIVATE
+#        CommandLayerLib
+#        Qt::Core
+#)

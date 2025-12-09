@@ -1,9 +1,7 @@
 #include <iostream>
-#include <vector>
 #include <cstring>
 #include <cstdlib>
 #include <sstream>
-#include <cerrno>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -89,16 +87,16 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in address;
     char buffer[BUFFER_SIZE];
     fd_set master_set;
-    fd_set read_set, write_set;
+    fd_set read_set;
 
     if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         error_exit("socket failed");
     }
 
-    // int opt = 1;
-    // if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0) {
-    //     error_exit("setsockopt");
-    // }
+    int opt = 1;
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0) {
+        error_exit("setsockopt");
+    }
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -112,16 +110,25 @@ int main(int argc, char *argv[]) {
         error_exit("listen");
     }
 
-    std::cout << "Listening on port: " << PORT << "\n";
+    std::cout << "[AS Log] Auth Server listening on port: " << PORT << "\n";
 
     FD_ZERO(&master_set);
     FD_SET(server_socket, &master_set);
+    max_sd = server_socket;
 
     while (true) {
         read_set = master_set;
-        write_set = master_set;
 
-        activity = select(max_sd + 1, &read_set, &write_set, NULL, NULL);
+        // Recalculating max_sd for every loop iteration to avoid client disconnect issues
+        max_sd = server_socket;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            sd = client_socket[i];
+            if (sd > 0 && sd > max_sd) {
+                max_sd = sd;
+            }
+        }
+
+        activity = select(max_sd + 1, &read_set, NULL, NULL, NULL);
 
         if ((activity < 0)) {
             std::cout << "Select error: " << "\n";
@@ -129,43 +136,54 @@ int main(int argc, char *argv[]) {
         }
 
         if (FD_ISSET(server_socket, &read_set)) {
+            addrlen = sizeof(address);
             if ((new_socket = accept(server_socket, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
                 error_exit("accept");
             }
 
-            std::cout << "New connection. SD: " << new_socket << ", IP: " << inet_ntoa(address.sin_addr) << "\n";
+            std::cout << "[AS Log] New connection. SD: " << new_socket << ", IP: " << inet_ntoa(address.sin_addr) << "\n";
 
+            FD_SET(new_socket, &master_set);
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (client_socket[i] == 0) {
                     client_socket[i] = new_socket;
                     break;
                 }
             }
-
-            FD_SET(new_socket, &master_set);
         }
 
         for (int i = 0; i < MAX_CLIENTS; i++) {
             sd = client_socket[i];
 
             if (sd > 0 && FD_ISSET(sd, &read_set)) {
-
                 memset(buffer, 0, BUFFER_SIZE);
                 valread = read(sd, buffer, BUFFER_SIZE - 1);
 
                 if (valread == 0) {
-                    std::cout << "Host disconnected. IP: " << inet_ntoa(address.sin_addr) << "\n";
+                    // Getting the address of this connection
+                    getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
+                    std::cout << "[AS Log] Host disconnected. IP: " << inet_ntoa(address.sin_addr) << "\n";
 
                     close(sd);
-                    client_socket[i] = 0;
                     FD_CLR(client_socket[i], &master_set);
+                    client_socket[i] = 0;
                 } else {
-                    std::cout << "Received from SD " << sd << ": " << buffer;
-                    send(sd, buffer, valread, 0);
+                    // Using constructor because the buffer might not be null terminated if full
+                    std::string data(buffer, valread);
+                    std::unique_ptr<Command> command = CommandFactory::create(data);
+                    std::string response;
+
+                    if(command) {
+                        response = handleCommand(command);
+                    }
+                    else {
+                        response = "Error : Invalid format or ID : " + data;
+                    }
+                    std::cout << "[AS Log] SD : " << sd << " , Response : " << response << "\n";
+                    send(sd, response.c_str(), response.length(), 0);
                 }
             }
         }
     }
-
     return 0;
 }
