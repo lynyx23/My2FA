@@ -36,6 +36,10 @@ add_executable(My2FA main.cpp
         src/Command_Layer/Code_Login/ValidateCodeServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseClientCommand.hpp
+        src/Command_Layer/Code_Login/CodeLoginCommands.hpp
+        src/Command_Layer/Credential_Login/CredentialLoginCommands.hpp
+        src/Command_Layer/Notification_Login/NotificationLoginCommands.hpp
+        src/Command_Layer/System_Commands/SystemCommands.hpp
 )
 target_link_libraries(My2FA
         Qt::Core

@@ -2,23 +2,10 @@
 #include <sstream>
 #include "Base/Command.hpp"
 #include "CommandFactory.hpp"
-#include "System_Commands/ConnectCommand.hpp"
-#include "System_Commands/PingCommand.hpp"
-#include "System_Commands/ErrorCommand.hpp"
-#include "Credential_Login/LoginRequestCommand.hpp"
-#include "Credential_Login/LoginResponseCommand.hpp"
-#include "Notification_Login/RequestNotificationClientCommand.hpp"
-#include "Notification_Login/RequestNotificationServerCommand.hpp"
-#include "Notification_Login/NotificationResponseClientCommand.hpp"
-#include "Notification_Login/NotificationResponseServerCommand.hpp"
-#include "Code_Login/RequestCodeClientCommand.hpp"
-#include "Code_Login/CodeResponseCommand.hpp"
-#include "Code_Login/ValidateCodeClientCommand.hpp"
-#include "Code_Login/ValidateCodeServerCommand.hpp"
-#include "Code_Login/ValidateResponseClientCommand.hpp"
-#include "Code_Login/ValidateResponseServerCommand.hpp"
-#include "Notification_Login/SendNotificationCommand.hpp"
-
+#include "System_Commands/SystemCommands.hpp"
+#include "Credential_Login/CredentialLoginCommands.hpp"
+#include "Notification_Login/NotificationLoginCommands.hpp"
+#include "Code_Login/CodeLoginCommands.hpp"
 
 // Hleper function to split command string into command and argument tokens
 static std::vector<std::string> split(const std::string &s) {
