@@ -8,15 +8,6 @@
 #include "Code_Login/CodeLoginCommands.hpp"
 
 // Hleper function to split command string into command and argument tokens
-static std::vector<std::string> split(const std::string &s) {
-    std::vector<std::string> tokens;
-    std::istringstream ss(s);
-    std::string token;
-    while(std::getline(ss, token, DELIMITER)) {
-        tokens.push_back(token);
-    }
-    return tokens;
-}
 
 std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
     const std::vector<std::string> args = split(data);

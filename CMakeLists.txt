@@ -62,6 +62,15 @@ target_link_libraries(AuthServer PRIVATE
         Qt::Core
 )
 
+add_executable(AuthClient
+        src/My2FA_Client/AuthClient.cpp
+)
+
+target_link_libraries(AuthClient PRIVATE
+        CommandLayerLib
+        Qt::Core
+)
+
 # Test Client
 #add_executable(TestClient
 #        src/Test_Client/TestClient.cpp
