@@ -14,7 +14,7 @@
 
 #define PORT 27701
 
-void handleUserInput(int sock, const std::string& input) {
+void handleUserInput(int socket, const std::string& input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -56,7 +56,7 @@ void handleUserInput(int sock, const std::string& input) {
 
     if (command) {
         std::string data = command->serialize();
-        send(sock, data.c_str(), data.length(), 0);
+        send(socket, data.c_str(), data.length(), 0);
         std::cout << "[AC Sent] " << data << "\n";
     }
 }
@@ -85,7 +85,11 @@ int main() {
         return -1;
     }
 
-    std::cout << "[AC Log] Connected! Type 'help' for commands.\n";
+    ConnectCommand conn("AUTH_CLIENT", "ac_01");
+    std::string data = conn.serialize();
+    send(client_socket, data.c_str(), data.length(), 0);
+
+    std::cout << "[AC Log] Connected to AS and sent handshake!\n";
 
     fd_set read_set;
     while (true) {
@@ -117,7 +121,7 @@ int main() {
             }
 
             std::string data(buffer, valread);
-            std::unique_ptr<Command> command = CommandFactory::create(data);
+            std::unique_ptr<Command> command;
             try {
                 command = CommandFactory::create(data);
             } catch (...) {
@@ -126,11 +130,13 @@ int main() {
             if (command) {
                 const auto* cmd = dynamic_cast<const SendNotificationCommand*>(command.get());
                 std::stringstream ss;
-                ss << "[AC Log] Received command SEND_NOTIF: appID =" << cmd->getAppid();
-                std::cout << ss.str() << "\n";
+                ss << "Received command SEND_NOTIF: appID =" << cmd->getAppid();
+                std::cout << "[AC Log] " << ss.str() << "\n";
+
+                send(client_socket, ss.str().c_str(), ss.str().length(), 0);
             }
             else {
-                std::cout << "[AS Response] " << buffer << "\n";
+                std::cout << "[AS Reply] " << buffer << "\n";
             }
         }
     }

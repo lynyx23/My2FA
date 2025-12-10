@@ -79,4 +79,18 @@ target_link_libraries(AuthClient PRIVATE
 #target_link_libraries(TestClient PRIVATE
 #        CommandLayerLib
 #        Qt::Core
-#)
+
+add_executable(DummyServer
+        src/Dummy_Server/DummyServer.cpp)
+
+target_link_libraries(DummyServer PRIVATE
+        CommandLayerLib
+        Qt::Core
+)
+add_executable(DummyClient
+        src/Dummy_Client/DummyClient.cpp)
+
+target_link_libraries(DummyClient PRIVATE
+        CommandLayerLib
+        Qt::Core
+)
