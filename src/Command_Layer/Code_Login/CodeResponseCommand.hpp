@@ -7,8 +7,10 @@
 class CodeResponseCommand : public Command {
 private:
     const int code;
+
 public:
-    explicit CodeResponseCommand(const int code) : code(code) {}
+    explicit CodeResponseCommand(const int code) : code(code) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::stringstream ss;
@@ -16,7 +18,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::CODE_RESP;
     }
 

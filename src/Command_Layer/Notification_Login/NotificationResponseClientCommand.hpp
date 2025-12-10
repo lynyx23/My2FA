@@ -8,18 +8,20 @@ class NotificationResponseClientCommand : public Command {
 private:
     const bool response;
     const int appid;
+
 public:
     NotificationResponseClientCommand(const bool response, const int appid)
-        : response(response), appid(appid) {}
+        : response(response), appid(appid) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::NOTIF_RESP_CLIENT) << DELIMITER
-            << static_cast<int>(response) << DELIMITER << appid;
+                << static_cast<int>(response) << DELIMITER << appid;
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::NOTIF_RESP_CLIENT;
     }
 

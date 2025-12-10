@@ -9,9 +9,11 @@ class ValidateCodeClientCommand : public Command {
 private:
     const int code;
     std::string uuid;
+
 public:
     ValidateCodeClientCommand(const int code, std::string uuid)
-        : code(code), uuid(std::move(uuid)) {}
+        : code(code), uuid(std::move(uuid)) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
@@ -19,7 +21,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::VALIDATE_CODE_CLIENT;
     }
 

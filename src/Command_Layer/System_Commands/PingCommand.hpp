@@ -15,7 +15,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::PING;
     }
 };

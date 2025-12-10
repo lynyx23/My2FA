@@ -10,18 +10,20 @@ private:
     const bool resp;
     std::string uuid;
     const int appid;
+
 public:
     ValidateResponseServerCommand(const bool resp, std::string uuid, const int appid)
-        : resp(resp), uuid(std::move(uuid)), appid(appid) {}
+        : resp(resp), uuid(std::move(uuid)), appid(appid) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::VALIDATE_RESP_SERVER)
-            << DELIMITER << static_cast<int>(resp) << DELIMITER << uuid << DELIMITER << appid;
+                << DELIMITER << static_cast<int>(resp) << DELIMITER << uuid << DELIMITER << appid;
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::VALIDATE_RESP_SERVER;
     }
 

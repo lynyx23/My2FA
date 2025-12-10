@@ -9,18 +9,20 @@ class ValidateResponseClientCommand : public Command {
 private:
     const bool resp;
     std::string uuid;
+
 public:
     ValidateResponseClientCommand(const bool resp, std::string uuid)
-        : resp(resp), uuid(std::move(uuid)) {}
+        : resp(resp), uuid(std::move(uuid)) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::VALIDATE_RESP_CLIENT)
-            << DELIMITER << static_cast<int>(resp) << DELIMITER << uuid;
+                << DELIMITER << static_cast<int>(resp) << DELIMITER << uuid;
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::VALIDATE_RESP_CLIENT;
     }
 

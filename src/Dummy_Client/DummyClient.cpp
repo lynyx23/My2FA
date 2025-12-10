@@ -15,7 +15,7 @@
 
 #define DS_PORT 27702
 
-void handleUserInput(int sock, const std::string& input) {
+void handleUserInput(int sock, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -23,41 +23,46 @@ void handleUserInput(int sock, const std::string& input) {
 
     if (args[0] == "help") {
         std::cout << "  help                      : Show this menu\n"
-                  << "  conn <id>                 : Handshake (e.g., conn client_01)\n"
-                  << "  login <user> <pass>       : Phase 1: Login (e.g., login alice 1234)\n"
-                  << "  push <uuid>               : Phase 2a: Request Push (e.g., push uuid_123)\n"
-                  << "  code <code> <uuid>        : Phase 2b: Enter Code (e.g., code 123456 uuid_123)\n"
-                  << "  exit                      : Quit\n"
-        ;
+                << "  conn <id>                 : Handshake (e.g. conn;dc_01)\n"
+                << "  login <user> <pass>       : Credential Login (e.g. login;user;pass)\n"
+                << "  req_notif <uuid>          : Request Notification Login (e.g. req_notif;uuid_1234)\n"
+                << "  code <code> <uuid>        : Enter Code (e.g. code;123456;uuid_1234)\n"
+                << "  exit                      : Quit\n";
         return;
-    }
-    else if (args[0] == "exit") {
+    } else if (args[0] == "exit") {
         close(sock);
         exit(0);
-    }
-    else if (args[0] == "conn") {
-        if (args.size() < 2) { std::cout << "Usage: conn <id>\n> "; return; }
+    } else if (args[0] == "conn") {
+        if (args.size() < 2) {
+            std::cout << "[DC Error] Usage: conn <id>\n";
+            return;
+        }
         command = std::make_unique<ConnectCommand>("DUMMY_CLIENT", args[1]);
-    }
-    else if (args[0] == "login") {
-        if (args.size() < 3) { std::cout << "Usage: login <user> <pass>\n> "; return; }
+    } else if (args[0] == "login") {
+        if (args.size() < 3) {
+            std::cout << "[DC Error] Usage: login <user> <pass>\n";
+            return;
+        }
         command = std::make_unique<LoginRequestCommand>(args[1], args[2]);
-    }
-    else if (args[0] == "push") {
-        if (args.size() < 2) { std::cout << "Usage: push <uuid>\n> "; return; }
+    } else if (args[0] == "req_notif") {
+        if (args.size() < 2) {
+            std::cout << "[DC Error] Usage: req_notif <uuid>\n";
+            return;
+        }
         command = std::make_unique<RequestNotificationClientCommand>(args[1]);
-    }
-    else if (args[0] == "code") {
-        if (args.size() < 3) { std::cout << "Usage: code <code> <uuid>\n> "; return; }
+    } else if (args[0] == "code") {
+        if (args.size() < 3) {
+            std::cout << "[DC Error] Usage: code <code> <uuid>\n";
+            return;
+        }
         try {
             command = std::make_unique<ValidateCodeClientCommand>(std::stoi(args[1]), args[2]);
         } catch (...) {
-            std::cout << "Error: Code must be an integer.\n> ";
+            std::cout << "[DC Error] Code must be an integer.\n";
             return;
         }
-    }
-    else {
-        std::cout << "Unknown command. Type 'help'.\n> ";
+    } else {
+        std::cout << "[DC Error] Unknown command! Type help.\n";
         return;
     }
 
@@ -68,41 +73,40 @@ void handleUserInput(int sock, const std::string& input) {
     }
 }
 
-std::string handleCommand(const std::unique_ptr<Command>& command) {
+std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
-    switch(command.get()->getType()) {
+    switch (command.get()->getType()) {
         case CommandType::CONN: {
-            const auto* cmd = dynamic_cast<const ConnectCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
-               << " , ID = " << cmd->getId();
+                    << " , ID = " << cmd->getId();
             break;
         }
         case CommandType::ERR: {
-            const auto* cmd = dynamic_cast<const ErrorCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
             ss << "Received command ERR: Type = " << cmd->getCode()
-               << " , Msg = " << cmd->getMessage();
+                    << " , Msg = " << cmd->getMessage();
             break;
         }
         case CommandType::LOGIN_RESP: {
-            const auto* cmd = dynamic_cast<const LoginResponseCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const LoginResponseCommand *>(command.get());
             ss << "Received command LOGIN_RESP: Response = " << (cmd->getResponse() ? "True" : "False")
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
         case CommandType::NOTIF_RESP_SERVER: {
-            const auto* cmd = dynamic_cast<const NotificationResponseServerCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const NotificationResponseServerCommand *>(command.get());
             ss << "Received command NOTIF_RESP_SERVER: Response = " << (cmd->getResponse() ? "True" : "False")
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
         case CommandType::VALIDATE_RESP_CLIENT: {
-            const auto* cmd = dynamic_cast<const ValidateResponseClientCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ValidateResponseClientCommand *>(command.get());
             ss << "Received command VALIDATE_RESP_CLIENT: Response = " << (cmd->getResp() ? "True" : "False")
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
         default:
-            // For commands that are valid, but the DC shouldn't necessarily receive or strictly log
             ss << "Invalid or Unexpected command type: " << static_cast<int>(command.get()->getType());
     }
     return ss.str();
@@ -126,13 +130,13 @@ int main() {
         return -1;
     }
 
-    std::cout << "Connecting to Dummy Server on port " << DS_PORT << "...\n";
-    if (connect(client_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    std::cout << "[DC Log] Connecting to Dummy Server on port " << DS_PORT << "...\n";
+    if (connect(client_socket, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
         perror("Connection Failed");
         return -1;
     }
 
-    std::cout << "Connected! Type help for commands.\n";
+    std::cout << "[DC Log] Connected! Type help for commands.\n";
 
     fd_set read_set;
     while (true) {

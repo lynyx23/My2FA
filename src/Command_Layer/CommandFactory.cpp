@@ -1,5 +1,5 @@
 #include <vector>
-#include <sstream>
+#include <string>
 #include "Base/Command.hpp"
 #include "CommandFactory.hpp"
 #include "System_Commands/SystemCommands.hpp"
@@ -11,7 +11,7 @@
 
 std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
     const std::vector<std::string> args = split(data);
-    if(args.empty()) return nullptr;
+    if (args.empty()) return nullptr;
     int type_int;
     try {
         type_int = std::stoi(args[0]);

@@ -27,51 +27,51 @@ void error_exit(const char *msg) {
     exit(EXIT_FAILURE);
 }
 
-std::string handleCommand(const std::unique_ptr<Command>& command) {
+std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
-    switch(command.get()->getType()) {
+    switch (command.get()->getType()) {
         case CommandType::CONN: {
-            const auto* cmd = dynamic_cast<const ConnectCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
-                <<" , ID = " << cmd->getId();
+                    << " , ID = " << cmd->getId();
             break;
         }
         case CommandType::ERR: {
-            const auto* cmd = dynamic_cast<const ErrorCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
             ss << "Received command ERR: Type = " << cmd->getCode()
-                << " , Msg = " << cmd->getMessage();
+                    << " , Msg = " << cmd->getMessage();
             break;
         }
         case CommandType::LOGIN_REQ: {
-            const auto* cmd = dynamic_cast<const LoginRequestCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const LoginRequestCommand *>(command.get());
             ss << "Received command LOGIN_REQ: User = " << cmd->getUsername()
-                << " , Password = " << cmd->getPassword();
+                    << " , Password = " << cmd->getPassword();
             break;
         }
         case CommandType::REQ_NOTIF_SERVER: {
-            const auto* cmd = dynamic_cast<const RequestNotificationServerCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const RequestNotificationServerCommand *>(command.get());
             ss << "Received command REQ_NOTIF_SERVER: UUID = " << cmd->getUuid()
-                << " , AppID = " << cmd->getAppid();
+                    << " , AppID = " << cmd->getAppid();
             break;
         }
         case CommandType::NOTIF_RESP_CLIENT: {
-            const auto* cmd = dynamic_cast<const NotificationResponseClientCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const NotificationResponseClientCommand *>(command.get());
             ss << "Received command NOTIF_RESP_CLIENT: Response = "
-                << (cmd->getResponse() ? "True" : "False")
-                << " , AppID = " << cmd->getAppid();
+                    << (cmd->getResponse() ? "True" : "False")
+                    << " , AppID = " << cmd->getAppid();
             break;
         }
         case CommandType::REQ_CODE_CLIENT: {
-            const auto* cmd = dynamic_cast<const RequestCodeClientCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const RequestCodeClientCommand *>(command.get());
             ss << "Received command REQ_CODE_CLIENT: UUID = " << cmd->getUuid()
-                << " , AppID = " << cmd->getAppid();
+                    << " , AppID = " << cmd->getAppid();
             break;
         }
         case CommandType::VALIDATE_CODE_SERVER: {
-            const auto* cmd = dynamic_cast<const ValidateCodeServerCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ValidateCodeServerCommand *>(command.get());
             ss << "Received command VALIDATE_CODE_SERVER: Code = " << cmd->getCode()
-                << " , UUID = " << cmd->getUuid()
-                << " , AppID = " << cmd->getAppid();
+                    << " , UUID = " << cmd->getUuid()
+                    << " , AppID = " << cmd->getAppid();
             break;
         }
         default:
@@ -88,14 +88,13 @@ void handleUserInput(int server_socket, std::string input) {
 
     if (args[0] == "help") {
         std::cout << "  clients                                     : List all active client file descriptors.\n"
-                  << "  send_notif <appid>                          : Send Push to Client (e.g. send_notif 101)\n"
-                  << "  code_resp <code>                            : Send Code to Client (e.g. code_resp 123456)\n"
-                  << "  notif_resp_server <1/0> <uuid>              : Send Push Result to DS (e.g. notif_resp_server 1 user1)\n"
-                  << "  validate_resp_server <1/0> <uuid> <appid>   : Send Code Result to DS (e.g. validate_resp_server 1 user1 101)\n"
-                  << "  exit                                        : Shut down the server.\n";
+                << "  send_notif <appid>                          : Send Push to Client (e.g. send_notif;12)\n"
+                << "  code_resp <code>                            : Send Code to Client (e.g. code_resp;123456)\n"
+                << "  notif_resp_server <1/0> <uuid>              : Send Push Result to DS (e.g. notif_resp_server;1;user123)\n"
+                << "  validate_resp_server <1/0> <uuid> <appid>   : Send Code Result to DS (e.g. validate_resp_server;1;user123;12)\n"
+                << "  exit                                        : Shut down the server.\n";
         return;
-    }
-    else if (args[0] == "clients") {
+    } else if (args[0] == "clients") {
         std::cout << "[AS Log] Active Sockets: ";
         bool found = false;
         for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -107,60 +106,61 @@ void handleUserInput(int server_socket, std::string input) {
         if (!found) std::cout << "None.";
         std::cout << "\n";
         return;
-    }
-    else if (args[0] == "exit") {
+    } else if (args[0] == "exit") {
         std::cout << "[AS Log] Shutting down...\n";
         close(server_socket);
         exit(0);
-    }
-    // --- COMMAND CONSTRUCTION ---
-    else if (args[0] == "send_notif") {
-        if (args.size() < 2) { std::cout << "[AS Error] Usage: send_notif <appid>\n"; return; }
+    } else if (args[0] == "send_notif") {
+        if (args.size() < 2) {
+            std::cout << "[AS Error] Usage: send_notif <appid>\n";
+            return;
+        }
         command = std::make_unique<SendNotificationCommand>(std::stoi(args[1]));
-    }
-    else if (args[0] == "code_resp") {
-        if (args.size() < 2) { std::cout << "[AS Error] Usage: code_resp <code>\n"; return; }
+    } else if (args[0] == "code_resp") {
+        if (args.size() < 2) {
+            std::cout << "[AS Error] Usage: code_resp <code>\n";
+            return;
+        }
         command = std::make_unique<CodeResponseCommand>(std::stoi(args[1]));
-    }
-    else if (args[0] == "notif_resp_server") {
-        if (args.size() < 3) { std::cout << "[AS Error] Usage: notif_resp_server <1/0> <uuid>\n"; return; }
+    } else if (args[0] == "notif_resp_server") {
+        if (args.size() < 3) {
+            std::cout << "[AS Error] Usage: notif_resp_server <1/0> <uuid>\n";
+            return;
+        }
         bool resp = (args[1] == "1" || args[1] == "true");
         command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
-    }
-    else if (args[0] == "validate_resp_server") {
-        if (args.size() < 4) { std::cout << "[AS Error] Usage: validate_resp_server <1/0> <uuid> <appid>\n"; return; }
+    } else if (args[0] == "validate_resp_server") {
+        if (args.size() < 4) {
+            std::cout << "[AS Error] Usage: validate_resp_server <1/0> <uuid> <appid>\n";
+            return;
+        }
         bool resp = (args[1] == "1" || args[1] == "true");
         command = std::make_unique<ValidateResponseServerCommand>(resp, args[2], std::stoi(args[3]));
-    }
-    else {
+    } else {
         std::cout << "[AS Error] Unknown command. Type 'help'.\n";
         return;
     }
 
-    // --- ROUTING SWITCH ---
     if (command) {
         std::string data = command->serialize();
 
-        switch(command->getType()) {
-            // 1. COMMANDS FOR AUTH CLIENTS (AC)
+        switch (command->getType()) {
             case CommandType::SEND_NOTIF:
             case CommandType::CODE_RESP:
                 std::cout << "[AS -> AC] Sending: " << data << "\n";
-                for(int i=0; i<MAX_CLIENTS; ++i) {
-                    if(client_socket[i] > 0) {
+                for (int i = 0; i < MAX_CLIENTS; ++i) {
+                    if (client_socket[i] > 0) {
                         send(client_socket[i], data.c_str(), data.length(), 0);
                     }
                 }
                 break;
 
-            // 2. COMMANDS FOR DUMMY SERVER (DS)
             case CommandType::NOTIF_RESP_SERVER:
             case CommandType::VALIDATE_RESP_SERVER:
                 std::cout << "[AS -> DS] Sending: " << data << "\n";
-                // Without ID routing, we broadcast to all.
-                // DS will ignore it if logic isn't set, or process it if connected.
-                for(int i=0; i<MAX_CLIENTS; ++i) {
-                    if(client_socket[i] > 0) {
+                // send to all clients for now
+                for (int i = 0; i < MAX_CLIENTS; ++i) {
+                    if (client_socket[i] > 0) {
                         send(client_socket[i], data.c_str(), data.length(), 0);
                     }
                 }
@@ -168,7 +168,7 @@ void handleUserInput(int server_socket, std::string input) {
 
             default:
                 std::cout << "[AS Error] No routing rule defined for Command ID "
-                          << static_cast<int>(command->getType()) << "\n";
+                        << static_cast<int>(command->getType()) << "\n";
                 break;
         }
     }
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
     }
 
     int opt = 1;
-    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0) {
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *) &opt, sizeof(opt)) < 0) {
         error_exit("setsockopt");
     }
 
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(server_socket, (struct sockaddr *) &address, sizeof(address)) < 0) {
         error_exit("bind failed");
     }
 
@@ -243,11 +243,12 @@ int main(int argc, char *argv[]) {
 
         if (FD_ISSET(server_socket, &read_set)) {
             addrlen = sizeof(address);
-            if ((new_socket = accept(server_socket, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
+            if ((new_socket = accept(server_socket, (struct sockaddr *) &address, (socklen_t *) &addrlen)) < 0) {
                 error_exit("accept");
             }
 
-            std::cout << "[AS Log] New connection. SD: " << new_socket << ", IP: " << inet_ntoa(address.sin_addr) << "\n";
+            std::cout << "[AS Log] New connection. SD: " << new_socket << ", IP: " << inet_ntoa(address.sin_addr) <<
+                    "\n";
 
             FD_SET(new_socket, &master_set);
             for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -266,7 +267,7 @@ int main(int argc, char *argv[]) {
                 int valread = read(sd, buffer, BUFFER_SIZE - 1);
 
                 if (valread == 0) {
-                    getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
+                    getpeername(sd, (struct sockaddr *) &address, (socklen_t *) &addrlen);
                     std::cout << "[AS Log] Host disconnected. IP: " << inet_ntoa(address.sin_addr) << "\n";
 
                     close(sd);
@@ -281,13 +282,12 @@ int main(int argc, char *argv[]) {
                         command = nullptr;
                     }
 
-                    if(command) {
+                    if (command) {
                         std::string reply = handleCommand(command);
                         std::cout << "[AS Log] " << reply << "\n";
 
                         send(sd, reply.c_str(), reply.length(), 0);
-                    }
-                    else {
+                    } else {
                         std::cout << "[AS Reply] SD: " << sd << " " << data << "\n";
                     }
                 }

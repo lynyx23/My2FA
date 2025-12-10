@@ -9,9 +9,11 @@ class LoginRequestCommand : public Command {
 private:
     std::string username;
     std::string password;
+
 public:
     LoginRequestCommand(std::string user, std::string pass)
-        : username(std::move(user)), password(std::move(pass)) {}
+        : username(std::move(user)), password(std::move(pass)) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
@@ -19,7 +21,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::LOGIN_REQ;
     }
 

@@ -3,7 +3,6 @@
 #include <cstring>
 #include <cstdlib>
 #include <sstream>
-#include <cerrno>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -48,7 +47,7 @@ void connectToAuthServer() {
     }
 
     std::cout << "[DS Log] Connecting to Auth Server on " << AS_PORT << "...\n";
-    if (connect(auth_server_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+    if (connect(auth_server_socket, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
         std::cerr << "[DS Error] Connection to AS Failed\n";
         close(auth_server_socket);
         auth_server_socket = 0;
@@ -63,57 +62,54 @@ void connectToAuthServer() {
     std::cout << "[DS Log] Connected to AS and sent handshake.\n";
 }
 
-// Detailed Command Handler (Generates Log/Reply Text)
-std::string handleCommand(const std::unique_ptr<Command>& command) {
+std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
-    switch(command.get()->getType()) {
+    switch (command.get()->getType()) {
         case CommandType::CONN: {
-            const auto* cmd = dynamic_cast<const ConnectCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
-               << " , ID = " << cmd->getId();
+                    << " , ID = " << cmd->getId();
             break;
         }
         case CommandType::ERR: {
-            const auto* cmd = dynamic_cast<const ErrorCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
             ss << "Received command ERR: Type = " << cmd->getCode()
-               << " , Msg = " << cmd->getMessage();
+                    << " , Msg = " << cmd->getMessage();
             break;
         }
-        // --- Commands from Dummy Client ---
         case CommandType::LOGIN_REQ: {
-            const auto* cmd = dynamic_cast<const LoginRequestCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const LoginRequestCommand *>(command.get());
             ss << "Received command LOGIN_REQ: User = " << cmd->getUsername()
-               << " , Password = " << cmd->getPassword();
+                    << " , Password = " << cmd->getPassword();
             break;
         }
         case CommandType::REQ_NOTIF_CLIENT: {
-            const auto* cmd = dynamic_cast<const RequestNotificationClientCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const RequestNotificationClientCommand *>(command.get());
             ss << "Received command REQ_NOTIF_CLIENT: UUID = " << cmd->getUuid();
             break;
         }
         case CommandType::VALIDATE_CODE_CLIENT: {
-            const auto* cmd = dynamic_cast<const ValidateCodeClientCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ValidateCodeClientCommand *>(command.get());
             ss << "Received command VALIDATE_CODE_CLIENT: Code = " << cmd->getCode()
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
-        // --- Commands from Auth Server ---
         case CommandType::LOGIN_RESP: {
-            const auto* cmd = dynamic_cast<const LoginResponseCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const LoginResponseCommand *>(command.get());
             ss << "Received command LOGIN_RESP: Response = " << (cmd->getResponse() ? "True" : "False")
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
         case CommandType::NOTIF_RESP_SERVER: {
-            const auto* cmd = dynamic_cast<const NotificationResponseServerCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const NotificationResponseServerCommand *>(command.get());
             ss << "Received command NOTIF_RESP_SERVER: Response = " << (cmd->getResponse() ? "True" : "False")
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
         case CommandType::VALIDATE_RESP_CLIENT: {
-            const auto* cmd = dynamic_cast<const ValidateResponseClientCommand*>(command.get());
+            const auto *cmd = dynamic_cast<const ValidateResponseClientCommand *>(command.get());
             ss << "Received command VALIDATE_RESP_CLIENT: Response = " << (cmd->getResp() ? "True" : "False")
-               << " , UUID = " << cmd->getUuid();
+                    << " , UUID = " << cmd->getUuid();
             break;
         }
         default:
@@ -122,31 +118,29 @@ std::string handleCommand(const std::unique_ptr<Command>& command) {
     return ss.str();
 }
 
-void handleUserInput(int server_socket, const std::string& input, fd_set& master_set) {
+void handleUserInput(int server_socket, const std::string &input, fd_set &master_set) {
     auto args = split(input);
-    if(args.empty()) return;
+    if (args.empty()) return;
 
     std::unique_ptr<Command> command = nullptr;
 
     if (args[0] == "help") {
         std::cout << "  clients                                     : List all active client file descriptors.\n"
-                  << "  conn <type> <id>                            : Send Handshake to AS\n"
-                  << "  reconnect                                   : Reconnect to AS\n"
-                  << "  err <code> <msg>                            : Send Error to AS\n"
-                  << "  req_notif_server <uuid> <appid>             : Send Notification Request to AS\n"
-                  << "  notif_resp_server <resp> <uuid>             : Send Notification Result to DC\n"
-                  << "  validate_code_server <code> <uuid> <appid>  : Send Code Verify Request to AS\n"
-                  << "  validate_resp_client <resp> <uuid>          : Send Code Result to DC\n"
-                  << "  exit                                        : Exit\n";
+                << "  conn <type> <id>                            : Send Handshake to AS\n"
+                << "  reconnect                                   : Reconnect to AS\n"
+                << "  err <code> <msg>                            : Send Error to AS\n"
+                << "  req_notif_server <uuid> <appid>             : Send Notification Request to AS\n"
+                << "  notif_resp_server <resp> <uuid>             : Send Notification Result to DC\n"
+                << "  validate_code_server <code> <uuid> <appid>  : Send Code Verify Request to AS\n"
+                << "  validate_resp_client <resp> <uuid>          : Send Code Result to DC\n"
+                << "  exit                                        : Exit\n";
         return;
-    }
-    else if (args[0] == "exit") {
+    } else if (args[0] == "exit") {
         std::cout << "[DS Log] Shutting down...\n";
         close(server_socket);
         if (auth_server_socket > 0) close(auth_server_socket);
         exit(0);
-    }
-    else if (args[0] == "clients") {
+    } else if (args[0] == "clients") {
         std::cout << "[DS Log] Active Sockets: ";
         bool found = false;
         for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -158,41 +152,51 @@ void handleUserInput(int server_socket, const std::string& input, fd_set& master
         if (!found) std::cout << "None.";
         std::cout << "\n";
         return;
-    }
-    else if (args[0] == "reconnect") {
+    } else if (args[0] == "reconnect") {
         connectToAuthServer();
         if (auth_server_socket > 0) {
             FD_SET(auth_server_socket, &master_set);
         }
         return;
-    }
-    else if (args[0] == "conn") {
-        if (args.size() < 3) { std::cout << "[DS Error] Usage: conn <type> <id>\n"; return; }
+    } else if (args[0] == "conn") {
+        if (args.size() < 3) {
+            std::cout << "[DS Error] Usage: conn <type> <id>\n";
+            return;
+        }
         command = std::make_unique<ConnectCommand>(args[1], args[2]);
-    }
-    else if (args[0] == "err") {
-        if (args.size() < 3) { std::cout << "[DS Error] Usage: err <code> <msg>\n"; return; }
+    } else if (args[0] == "err") {
+        if (args.size() < 3) {
+            std::cout << "[DS Error] Usage: err <code> <msg>\n";
+            return;
+        }
         command = std::make_unique<ErrorCommand>(std::stoi(args[1]), args[2]);
-    }
-    else if (args[0] == "req_notif_server") {
-        if (args.size() < 3) { std::cout << "[DS Error] Usage: req_notif_server <uuid> <appid>\n"; return; }
+    } else if (args[0] == "req_notif_server") {
+        if (args.size() < 3) {
+            std::cout << "[DS Error] Usage: req_notif_server <uuid> <appid>\n";
+            return;
+        }
         command = std::make_unique<RequestNotificationServerCommand>(args[1], std::stoi(args[2]));
-    }
-    else if (args[0] == "notif_resp_server") {
-        if (args.size() < 3) { std::cout << "[DS Error] Usage: notif_resp_server <1/0> <uuid>\n"; return; }
+    } else if (args[0] == "notif_resp_server") {
+        if (args.size() < 3) {
+            std::cout << "[DS Error] Usage: notif_resp_server <1/0> <uuid>\n";
+            return;
+        }
         bool resp = (args[1] == "1" || args[1] == "true");
         command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
-    }
-    else if (args[0] == "validate_code_server") {
-        if (args.size() < 4) { std::cout << "[DS Error] Usage: validate_code_server <code> <uuid> <appid>\n"; return; }
+    } else if (args[0] == "validate_code_server") {
+        if (args.size() < 4) {
+            std::cout << "[DS Error] Usage: validate_code_server <code> <uuid> <appid>\n";
+            return;
+        }
         command = std::make_unique<ValidateCodeServerCommand>(std::stoi(args[1]), args[2], std::stoi(args[3]));
-    }
-    else if (args[0] == "validate_resp_client") {
-        if (args.size() < 3) { std::cout << "[DS Error] Usage: validate_resp_client <1/0> <uuid>\n"; return; }
+    } else if (args[0] == "validate_resp_client") {
+        if (args.size() < 3) {
+            std::cout << "[DS Error] Usage: validate_resp_client <1/0> <uuid>\n";
+            return;
+        }
         bool resp = (args[1] == "1" || args[1] == "true");
         command = std::make_unique<ValidateResponseClientCommand>(resp, args[2]);
-    }
-    else {
+    } else {
         std::cout << "[DS Error] Unknown command! Type help.\n";
         return;
     }
@@ -200,7 +204,7 @@ void handleUserInput(int server_socket, const std::string& input, fd_set& master
     if (command) {
         std::string data = command->serialize();
 
-        switch(command->getType()) {
+        switch (command->getType()) {
             case CommandType::CONN:
             case CommandType::ERR:
             case CommandType::REQ_NOTIF_SERVER:
@@ -217,8 +221,8 @@ void handleUserInput(int server_socket, const std::string& input, fd_set& master
             case CommandType::VALIDATE_RESP_CLIENT:
                 std::cout << "[DS -> DC] Sent: " << data << "\n";
                 // For now it sends this to every client
-                for(int i=0; i<MAX_CLIENTS; ++i) {
-                    if(client_socket[i] > 0) {
+                for (int i = 0; i < MAX_CLIENTS; ++i) {
+                    if (client_socket[i] > 0) {
                         send(client_socket[i], data.c_str(), data.length(), 0);
                     }
                 }
@@ -226,7 +230,7 @@ void handleUserInput(int server_socket, const std::string& input, fd_set& master
 
             default:
                 std::cout << "[DS Error] No routing rule for Command ID "
-                          << static_cast<int>(command->getType()) << "\n";
+                        << static_cast<int>(command->getType()) << "\n";
                 break;
         }
     }
@@ -242,12 +246,12 @@ int main(int argc, char *argv[]) {
         error_exit("socket failed");
     }
     int opt = 1;
-    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt));
+    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *) &opt, sizeof(opt));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(DS_PORT);
 
-    if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(server_socket, (struct sockaddr *) &address, sizeof(address)) < 0) {
         error_exit("bind failed");
     }
     if (listen(server_socket, 3) < 0) error_exit("listen");
@@ -287,7 +291,7 @@ int main(int argc, char *argv[]) {
 
         if (FD_ISSET(server_socket, &read_set)) {
             addrlen = sizeof(address);
-            if ((new_socket = accept(server_socket, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
+            if ((new_socket = accept(server_socket, (struct sockaddr *) &address, (socklen_t *) &addrlen)) < 0) {
                 perror("accept");
             } else {
                 std::cout << "[DS Log] New Client connection. SD: " << new_socket << "\n";
@@ -326,7 +330,7 @@ int main(int argc, char *argv[]) {
 
                 if (valread == 0) {
                     addrlen = sizeof(address);
-                    getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
+                    getpeername(sd, (struct sockaddr *) &address, (socklen_t *) &addrlen);
                     std::cout << "[DS Log] Client disconnected.\n";
                     close(sd);
                     FD_CLR(sd, &master_set);

@@ -13,7 +13,8 @@ private:
 
 public:
     ConnectCommand(std::string type, std::string connectionId)
-        : connection_type(std::move(type)), id(std::move(connectionId)) {}
+        : connection_type(std::move(type)), id(std::move(connectionId)) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
@@ -21,7 +22,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::CONN;
     }
 

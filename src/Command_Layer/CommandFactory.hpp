@@ -6,15 +6,15 @@
 #include "Base/Command.hpp"
 
 class CommandFactory {
-    public:
-        static std::unique_ptr<Command> create(const std::string &data);
+public:
+    static std::unique_ptr<Command> create(const std::string &data);
 };
 
 static std::vector<std::string> split(const std::string &s) {
     std::vector<std::string> tokens;
     std::istringstream ss(s);
     std::string token;
-    while(std::getline(ss, token, DELIMITER)) {
+    while (std::getline(ss, token, DELIMITER)) {
         tokens.push_back(token);
     }
     return tokens;

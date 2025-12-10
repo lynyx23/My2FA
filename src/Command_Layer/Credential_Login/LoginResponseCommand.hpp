@@ -9,18 +9,20 @@ class LoginResponseCommand : public Command {
 private:
     const bool response;
     std::string uuid;
+
 public:
     LoginResponseCommand(const bool resp, std::string uuid)
-        : response(resp), uuid(std::move(uuid)) {}
+        : response(resp), uuid(std::move(uuid)) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::LOGIN_RESP) << DELIMITER
-            << static_cast<int>(response) << DELIMITER << uuid;
+                << static_cast<int>(response) << DELIMITER << uuid;
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::LOGIN_RESP;
     }
 

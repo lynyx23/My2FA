@@ -9,9 +9,11 @@ class RequestNotificationServerCommand : public Command {
 private:
     std::string uuid;
     const int appid;
+
 public:
     RequestNotificationServerCommand(std::string uuid, const int appid)
-        : uuid(std::move(uuid)), appid(appid) {}
+        : uuid(std::move(uuid)), appid(appid) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
@@ -19,7 +21,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::REQ_NOTIF_SERVER;
     }
 

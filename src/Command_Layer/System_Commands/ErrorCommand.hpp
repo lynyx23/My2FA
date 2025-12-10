@@ -12,7 +12,8 @@ private:
 
 public:
     ErrorCommand(const int errCode, std::string message)
-        : code(errCode), msg(std::move(message)) {}
+        : code(errCode), msg(std::move(message)) {
+    }
 
     [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
@@ -20,7 +21,7 @@ public:
         return ss.str();
     }
 
-    [[nodiscard]] CommandType getType() const override{
+    [[nodiscard]] CommandType getType() const override {
         return CommandType::ERR;
     }
 
