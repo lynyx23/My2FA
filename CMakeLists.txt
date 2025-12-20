@@ -64,6 +64,7 @@ target_link_libraries(AuthServer PRIVATE
 
 add_executable(AuthClient
         src/My2FA_Client/AuthClient.cpp
+        src/Connection_Layer/ClientConnectionHandler.hpp
 )
 
 target_link_libraries(AuthClient PRIVATE
@@ -88,7 +89,8 @@ target_link_libraries(DummyServer PRIVATE
         Qt::Core
 )
 add_executable(DummyClient
-        src/Dummy_Client/DummyClient.cpp)
+        src/Dummy_Client/DummyClient.cpp
+        src/Connection_Layer/ClientConnectionHandler.hpp)
 
 target_link_libraries(DummyClient PRIVATE
         CommandLayerLib
