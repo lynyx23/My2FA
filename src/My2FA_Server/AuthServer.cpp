@@ -1,13 +1,9 @@
 #include <iostream>
 #include <cstring>
-#include <cstdlib>
 #include <sstream>
 #include <vector>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <sys/time.h>
 
 #include "../Command_Layer/CommandFactory.hpp"
@@ -15,17 +11,13 @@
 #include "../Command_Layer/Credential_Login/CredentialLoginCommands.hpp"
 #include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
 #include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
+#include "../Connection_Layer/ServerConnectionHandler.hpp"
 
 #define PORT 27701 // Auth port
 #define MAX_CLIENTS 30
 #define BUFFER_SIZE 1024
 
 int client_socket[MAX_CLIENTS] = {0};
-
-void error_exit(const char *msg) {
-    perror(msg);
-    exit(EXIT_FAILURE);
-}
 
 std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
@@ -80,7 +72,7 @@ std::string handleCommand(const std::unique_ptr<Command> &command) {
     return ss.str();
 }
 
-void handleUserInput(int server_socket, std::string input) {
+void handleUserInput(const ServerConnectionHandler &handler, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -108,7 +100,6 @@ void handleUserInput(int server_socket, std::string input) {
         return;
     } else if (args[0] == "exit") {
         std::cout << "[AS Log] Shutting down...\n";
-        close(server_socket);
         exit(0);
     } else if (args[0] == "send_notif") {
         if (args.size() < 2) {
@@ -142,28 +133,19 @@ void handleUserInput(int server_socket, std::string input) {
     }
 
     if (command) {
-        std::string data = command->serialize();
+        const std::string data = command->serialize();
 
         switch (command->getType()) {
             case CommandType::SEND_NOTIF:
             case CommandType::CODE_RESP:
                 std::cout << "[AS -> AC] Sending: " << data << "\n";
-                for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client_socket[i] > 0) {
-                        send(client_socket[i], data.c_str(), data.length(), 0);
-                    }
-                }
+                handler.broadcastCommand(command);
                 break;
 
             case CommandType::NOTIF_RESP_SERVER:
             case CommandType::VALIDATE_RESP_SERVER:
                 std::cout << "[AS -> DS] Sending: " << data << "\n";
-                // send to all clients for now
-                for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client_socket[i] > 0) {
-                        send(client_socket[i], data.c_str(), data.length(), 0);
-                    }
-                }
+                handler.broadcastCommand(command);
                 break;
 
             default:
@@ -174,125 +156,34 @@ void handleUserInput(int server_socket, std::string input) {
     }
 }
 
-int main(int argc, char *argv[]) {
-    int server_socket, new_socket;
-    int addrlen, sd;
-    int max_sd;
-
-    struct sockaddr_in address;
-    char buffer[BUFFER_SIZE];
-    fd_set master_set;
+bool checkConsoleInput() {
     fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(STDIN_FILENO, &read_set);
+    timeval timeout{0, 0};
+    return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
+}
 
-    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        error_exit("socket failed");
-    }
-
-    int opt = 1;
-    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *) &opt, sizeof(opt)) < 0) {
-        error_exit("setsockopt");
-    }
-
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
-
-    if (bind(server_socket, (struct sockaddr *) &address, sizeof(address)) < 0) {
-        error_exit("bind failed");
-    }
-
-    if (listen(server_socket, 3) < 0) {
-        error_exit("listen");
-    }
-
-    std::cout << "[AS Log] Auth Server started! Type help for commands.\n";
-    std::cout << "[AS Log] Auth Server listening on port: " << PORT << "\n";
-
-    FD_ZERO(&master_set);
-    FD_SET(server_socket, &master_set);
-    max_sd = server_socket;
+int main() {
+    ServerConnectionHandler handler(PORT);
+    handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
+        std::cout << "[AS Log] Handling command from SD " << client_fd
+                << "\n" << handleCommand(command) << "\n";
+    });
+    handler.setConnectCallback([&](const int client_fd) {
+        std::cout << "[AS Log] New client connected: " << client_fd << "\n";
+    });
+    handler.setDisconnectCallback([&](const int client_fd) {
+        std::cout << "[AS Log] Client disconnected: " << client_fd << "\n";
+    });
 
     while (true) {
-        read_set = master_set;
-        FD_SET(STDIN_FILENO, &read_set);
+        handler.update();
 
-        max_sd = server_socket;
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            sd = client_socket[i];
-            if (sd > 0 && sd > max_sd) {
-                max_sd = sd;
-            }
-        }
-        if (STDIN_FILENO > max_sd) max_sd = STDIN_FILENO;
-
-        int activity = select(max_sd + 1, &read_set, NULL, NULL, NULL);
-
-        if ((activity < 0)) {
-            std::cout << "Select error: " << "\n";
-            continue;
-        }
-
-        if (FD_ISSET(STDIN_FILENO, &read_set)) {
+        if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
-            if (!input.empty()) {
-                handleUserInput(server_socket, input);
-            }
-            continue;
-        }
-
-        if (FD_ISSET(server_socket, &read_set)) {
-            addrlen = sizeof(address);
-            if ((new_socket = accept(server_socket, (struct sockaddr *) &address, (socklen_t *) &addrlen)) < 0) {
-                error_exit("accept");
-            }
-
-            std::cout << "[AS Log] New connection. SD: " << new_socket << ", IP: " << inet_ntoa(address.sin_addr) <<
-                    "\n";
-
-            FD_SET(new_socket, &master_set);
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (client_socket[i] == 0) {
-                    client_socket[i] = new_socket;
-                    break;
-                }
-            }
-        }
-
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            sd = client_socket[i];
-
-            if (sd > 0 && FD_ISSET(sd, &read_set)) {
-                memset(buffer, 0, BUFFER_SIZE);
-                int valread = read(sd, buffer, BUFFER_SIZE - 1);
-
-                if (valread == 0) {
-                    getpeername(sd, (struct sockaddr *) &address, (socklen_t *) &addrlen);
-                    std::cout << "[AS Log] Host disconnected. IP: " << inet_ntoa(address.sin_addr) << "\n";
-
-                    close(sd);
-                    FD_CLR(client_socket[i], &master_set);
-                    client_socket[i] = 0;
-                } else {
-                    std::string data(buffer, valread);
-                    std::unique_ptr<Command> command;
-                    try {
-                        command = CommandFactory::create(data);
-                    } catch (...) {
-                        command = nullptr;
-                    }
-
-                    if (command) {
-                        std::string reply = handleCommand(command);
-                        std::cout << "[AS Log] " << reply << "\n";
-
-                        send(sd, reply.c_str(), reply.length(), 0);
-                    } else {
-                        std::cout << "[AS Reply] SD: " << sd << " " << data << "\n";
-                    }
-                }
-            }
+            handleUserInput(handler, input);
         }
     }
-    return 0;
 }

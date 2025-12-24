@@ -51,12 +51,11 @@ target_include_directories(CommandLayerLib PUBLIC src)
 
 target_link_libraries(CommandLayerLib PRIVATE Qt::Core)
 
-# AS executable
 add_executable(AuthServer
         src/My2FA_Server/AuthServer.cpp
+        src/Connection_Layer/ServerConnectionHandler.hpp
 )
 
-# Link to the lib for AS
 target_link_libraries(AuthServer PRIVATE
         CommandLayerLib
         Qt::Core
@@ -72,17 +71,9 @@ target_link_libraries(AuthClient PRIVATE
         Qt::Core
 )
 
-# Test Client
-#add_executable(TestClient
-#        src/Test_Client/TestClient.cpp
-#)
-#
-#target_link_libraries(TestClient PRIVATE
-#        CommandLayerLib
-#        Qt::Core
-
 add_executable(DummyServer
-        src/Dummy_Server/DummyServer.cpp)
+        src/Dummy_Server/DummyServer.cpp
+        src/Connection_Layer/ServerConnectionHandler.hpp)
 
 target_link_libraries(DummyServer PRIVATE
         CommandLayerLib

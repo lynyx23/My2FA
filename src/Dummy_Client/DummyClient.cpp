@@ -4,7 +4,6 @@
 #include <sstream>
 #include <cstring>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
 
 #include "../Command_Layer/CommandFactory.hpp"
@@ -75,7 +74,7 @@ void handleUserInput(ClientConnectionHandler &handler, const std::string &input)
 
 std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
-    switch (command.get()->getType()) {
+    switch (command->getType()) {
         case CommandType::CONN: {
             const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
@@ -107,116 +106,34 @@ std::string handleCommand(const std::unique_ptr<Command> &command) {
             break;
         }
         default:
-            ss << "Invalid or Unexpected command type: " << static_cast<int>(command.get()->getType());
+            ss << "Invalid or Unexpected command type: " << static_cast<int>(command->getType());
     }
     return ss.str();
 }
 
-// int main() {
-//     int client_socket = 0;
-//     struct sockaddr_in serv_addr;
-//     char buffer[1024] = {0};
-//
-//     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-//         perror("Socket creation error");
-//         return -1;
-//     }
-//
-//     serv_addr.sin_family = AF_INET;
-//     serv_addr.sin_port = htons(DS_PORT);
-//
-//     if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-//         perror("Invalid address");
-//         return -1;
-//     }
-//
-//     std::cout << "[DC Log] Connecting to Dummy Server on port " << DS_PORT << "...\n";
-//     if (connect(client_socket, reinterpret_cast<struct sockaddr *>(&serv_addr), sizeof(serv_addr)) < 0) {
-//         perror("Connection Failed");
-//         return -1;
-//     }
-//
-//     std::cout << "[DC Log] Connected! Type help for commands.\n";
-//
-//     fd_set read_set;
-//     while (true) {
-//         FD_ZERO(&read_set);
-//         FD_SET(STDIN_FILENO, &read_set);
-//         FD_SET(client_socket, &read_set);
-//
-//         int activity = select(client_socket + 1, &read_set, nullptr, nullptr, nullptr);
-//
-//         if (activity < 0) break;
-//
-//         if (FD_ISSET(STDIN_FILENO, &read_set)) {
-//             std::string input;
-//             std::getline(std::cin, input);
-//             if (!input.empty()) {
-//                 handleUserInput(client_socket, input);
-//             }
-//         }
-//
-//         if (FD_ISSET(client_socket, &read_set)) {
-//             memset(buffer, 0, 1024);
-//             int valread = read(client_socket, buffer, 1024);
-//             if (valread == 0) {
-//                 std::cout << "\nServer disconnected.\n";
-//                 break;
-//             } else {
-//                 std::string data(buffer, valread);
-//                 std::unique_ptr<Command> command;
-//                 try {
-//                     command = CommandFactory::create(data);
-//                 } catch (...) {
-//                     command = nullptr;
-//                 }
-//
-//                 if (command) {
-//                     std::string reply = handleCommand(command);
-//                     std::cout << "[DC Log] " << reply << "\n";
-//
-//                     send(client_socket, reply.c_str(), reply.length(), 0);
-//                 } else {
-//                     std::cout << "[DS Reply] Invalid format or ID: " << data << "\n";
-//                 }
-//             }
-//         }
-//     }
-// }
+bool checkConsoleInput() {
+    fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(STDIN_FILENO, &read_set);
+    timeval timeout{0, 0};
+    return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
+}
 
-[[noreturn]] int main() {
+int main() {
     ClientConnectionHandler handler("127.0.0.1", DS_PORT);
-    handler.setCallback([](const std::unique_ptr<Command> &command) {
+    handler.setCallback([&](const std::unique_ptr<Command> &command) {
         std::cout << "[DC Log] Handling command ...\n" << handleCommand(command) << "\n";
     });
 
-    fd_set read_set;
-    int stdin_fd = STDIN_FILENO;
-    int socket_fd = handler.getSocket();
-
     while (true) {
-        FD_ZERO(&read_set);
-        FD_SET(stdin_fd, &read_set);
-        FD_SET(socket_fd, &read_set);
+        handler.update();
 
-        int max_sd = std::max(stdin_fd, socket_fd);
-        int activity = select(max_sd + 1, &read_set, nullptr, nullptr, nullptr);
-
-        if (activity < 0) {
-            std::cerr << "Select error\n";
-            break;
-        }
-
-        if (FD_ISSET(stdin_fd, &read_set)) {
+        if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
             if (!input.empty()) {
                 handleUserInput(handler, input);
             }
-        }
-
-        if (FD_ISSET(socket_fd, &read_set)) {
-            handler.update();
         }
     }
 }
