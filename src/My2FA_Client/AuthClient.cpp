@@ -1,10 +1,3 @@
-#include <iostream>
-#include <vector>
-#include <string>
-#include <cstring>
-#include <unistd.h>
-#include <sys/socket.h>
-
 #include "../Command_Layer/CommandFactory.hpp"
 #include "../Command_Layer/System_Commands/SystemCommands.hpp"
 #include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
@@ -13,7 +6,7 @@
 
 #define PORT 27701
 
-void handleUserInput(ClientConnectionHandler &handler, const std::string &input) {
+void handleUserInput(ClientConnectionHandler *handler, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -25,12 +18,11 @@ void handleUserInput(ClientConnectionHandler &handler, const std::string &input)
                 << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
                 << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
                 << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
+                << "  reconnect              : Reconnect to AS\n"
                 << "  exit                   : Quit\n";
         return;
-    } else if (args[0] == "exit") {
-        handler.disconnect();
-        exit(0);
-    } else if (args[0] == "conn") {
+    } else if (args[0] == "reconnect") return;
+    else if (args[0] == "conn") {
         if (args.size() != 2) {
             std::cerr << "[AC Error] Incorrect format: conn <id>\n ";
             return;
@@ -66,9 +58,32 @@ void handleUserInput(ClientConnectionHandler &handler, const std::string &input)
 
     if (command) {
         const std::string data = command->serialize();
-        handler.sendCommand(command);
-        std::cout << "[AC Sent] " << data << "\n";
+        if (handler && handler->isRunning()) {
+            handler->sendCommand(command);
+            std::cout << "[AC -> AS] Sent: " << data << "\n";
+        } else std::cerr << "[AC Error] Not connected to DS.\n";
     }
+}
+
+std::string handleCommand(const std::unique_ptr<Command> &command) {
+    std::ostringstream ss;
+    switch (command->getType()) {
+        case CommandType::ERR: {
+            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
+            ss << "Received command ERR: Type = " << cmd->getCode()
+                    << " , Msg = " << cmd->getMessage();
+            break;
+        }
+        case CommandType::SEND_NOTIF: {
+            const auto *cmd = dynamic_cast<const SendNotificationCommand *>(command.get());
+            ss << "Received command SEND_NOTIF: AppID = " << cmd->getAppid();
+            break;
+        }
+        default:
+            ss << "Invalid or Unexpected command type: "
+                    << static_cast<int>(command->getType());
+    }
+    return ss.str();
 }
 
 bool checkConsoleInput() {
@@ -80,19 +95,49 @@ bool checkConsoleInput() {
 }
 
 int main() {
-    ClientConnectionHandler handler("127.0.0.1", PORT);
-    handler.setCallback([&](const std::unique_ptr<Command> &command) {
-        std::cout << "[AC Log] Handling command ...\n" << command->serialize() << "\n";
-    });
+    bool is_connected;
+    std::unique_ptr<ClientConnectionHandler> handler = nullptr;
+    try {
+        handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
+        handler->setCallback([&](const std::unique_ptr<Command> &command) {
+            std::cout << "[AC Log] Handling command ...\n" << handleCommand(command) << "\n";
+        });
+        is_connected = true;
+    } catch (...) {
+        is_connected = false;
+        std::cerr << "[AC Error] Connection to AS Failed." << "\n";
+    }
 
-    while (true) {
-        handler.update();
+    bool run = true;
+    while (run) {
+        if (is_connected && handler) {
+            if (!handler->isRunning()) {
+                std::cerr << "[AC Error] AS disconnected!\n";
+                is_connected = false;
+            } else handler->update();
+        }
 
         if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
+            if (split(input)[0] == "exit") {
+                run = false;
+            }
+            if (split(input)[0] == "reconnect") {
+                try {
+                    handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
+                    handler->setCallback([&](const std::unique_ptr<Command> &command) {
+                        std::cout << "[AC Log] Handling command ...\n"
+                                << handleCommand(command) << "\n";
+                    });
+                    is_connected = true;
+                } catch (...) {
+                    is_connected = false;
+                    std::cerr << "[AC Error] Connection to AS Failed." << "\n";
+                }
+            }
             if (!input.empty()) {
-                handleUserInput(handler, input);
+                handleUserInput(handler.get(), input);
             }
         }
     }

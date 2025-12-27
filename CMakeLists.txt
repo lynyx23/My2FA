@@ -54,6 +54,7 @@ target_link_libraries(CommandLayerLib PRIVATE Qt::Core)
 add_executable(AuthServer
         src/My2FA_Server/AuthServer.cpp
         src/Connection_Layer/ServerConnectionHandler.hpp
+        src/Session_Manager/SessionManager.hpp
 )
 
 target_link_libraries(AuthServer PRIVATE
@@ -73,7 +74,8 @@ target_link_libraries(AuthClient PRIVATE
 
 add_executable(DummyServer
         src/Dummy_Server/DummyServer.cpp
-        src/Connection_Layer/ServerConnectionHandler.hpp)
+        src/Connection_Layer/ServerConnectionHandler.hpp
+        src/Session_Manager/SessionManager.hpp)
 
 target_link_libraries(DummyServer PRIVATE
         CommandLayerLib

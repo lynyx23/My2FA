@@ -1,70 +1,24 @@
-#include <iostream>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
 #include <sstream>
-#include <unistd.h>
-#include <arpa/inet.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <sys/time.h>
+#include <csignal>
 
 #include "../Command_Layer/CommandFactory.hpp"
 #include "../Command_Layer/System_Commands/SystemCommands.hpp"
 #include "../Command_Layer/Credential_Login/CredentialLoginCommands.hpp"
 #include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
 #include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
+#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include "Connection_Layer/ClientConnectionHandler.hpp"
 
 #define DS_PORT 27702      // Dummy Server Port
 #define AS_PORT 27701      // Auth Server Port
 #define MAX_CLIENTS 30
 #define BUFFER_SIZE 1024
 
-int auth_server_socket = 0;
-int client_socket[MAX_CLIENTS] = {0};
-
-void error_exit(const char *msg) {
-    perror(msg);
-    exit(EXIT_FAILURE);
-}
-
-void connectToAuthServer() {
-    if (auth_server_socket > 0) return;
-
-    struct sockaddr_in serv_addr;
-    if ((auth_server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        std::cerr << "[DS Error] AS Socket creation error\n";
-        return;
-    }
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(AS_PORT);
-
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-        std::cerr << "[DS Error] Invalid AS address\n";
-        return;
-    }
-
-    std::cout << "[DS Log] Connecting to Auth Server on " << AS_PORT << "...\n";
-    if (connect(auth_server_socket, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-        std::cerr << "[DS Error] Connection to AS Failed\n";
-        close(auth_server_socket);
-        auth_server_socket = 0;
-        return;
-    }
-
-    // Send Handshake
-    ConnectCommand conn("DUMMY_SERVER", "ds_01");
-    std::string data = conn.serialize();
-    send(auth_server_socket, data.c_str(), data.length(), 0);
-
-    std::cout << "[DS Log] Connected to AS and sent handshake.\n";
-}
-
 std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
-    switch (command.get()->getType()) {
+    switch (command->getType()) {
         case CommandType::CONN: {
             const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
@@ -113,12 +67,13 @@ std::string handleCommand(const std::unique_ptr<Command> &command) {
             break;
         }
         default:
-            ss << "Received Command ID: " << static_cast<int>(command.get()->getType());
+            ss << "Received Command ID: " << static_cast<int>(command->getType());
     }
     return ss.str();
 }
 
-void handleUserInput(int server_socket, const std::string &input, fd_set &master_set) {
+void handleUserInput(ServerConnectionHandler &ds_handler,
+                     ClientConnectionHandler *as_handler, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -135,30 +90,20 @@ void handleUserInput(int server_socket, const std::string &input, fd_set &master
                 << "  validate_resp_client <resp> <uuid>          : Send Code Result to DC\n"
                 << "  exit                                        : Exit\n";
         return;
-    } else if (args[0] == "exit") {
-        std::cout << "[DS Log] Shutting down...\n";
-        close(server_socket);
-        if (auth_server_socket > 0) close(auth_server_socket);
-        exit(0);
-    } else if (args[0] == "clients") {
-        std::cout << "[DS Log] Active Sockets: ";
-        bool found = false;
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            if (client_socket[i] > 0) {
-                std::cout << client_socket[i] << " ";
-                found = true;
-            }
-        }
-        if (!found) std::cout << "None.";
-        std::cout << "\n";
-        return;
-    } else if (args[0] == "reconnect") {
-        connectToAuthServer();
-        if (auth_server_socket > 0) {
-            FD_SET(auth_server_socket, &master_set);
-        }
-        return;
-    } else if (args[0] == "conn") {
+    } else if (args[0] == "reconnect") return;
+    // } else if (args[0] == "clients") {
+    //     std::cout << "[DS Log] Active Sockets: ";
+    //     bool found = false;
+    //     // for (int i = 0; i < MAX_CLIENTS; ++i) {
+    //     //     if (client_socket[i] > 0) {
+    //     //         std::cout << client_socket[i] << " ";
+    //     //         found = true;
+    //     //     }
+    //     // }
+    //     if (!found) std::cout << "None.";
+        // std::cout << "\n";
+        // return;
+    else if (args[0] == "conn") {
         if (args.size() < 3) {
             std::cout << "[DS Error] Usage: conn <type> <id>\n";
             return;
@@ -202,18 +147,24 @@ void handleUserInput(int server_socket, const std::string &input, fd_set &master
     }
 
     if (command) {
-        std::string data = command->serialize();
+        const std::string data = command->serialize();
 
         switch (command->getType()) {
             case CommandType::CONN:
             case CommandType::ERR:
             case CommandType::REQ_NOTIF_SERVER:
             case CommandType::VALIDATE_CODE_SERVER:
-                if (auth_server_socket > 0) {
-                    send(auth_server_socket, data.c_str(), data.length(), 0);
+                // try {
+                //     as_handler->sendCommand(command);
+                //     std::cout << "[DS -> AS] Sent: " << data << "\n";
+                // } catch (std::exception &e) {
+                //     std::cerr << "[DS Error] Not connected to Auth Server.\n" << e.what() << "\n";
+                // }
+                if (as_handler && as_handler->isRunning()) {
+                    as_handler->sendCommand(command);
                     std::cout << "[DS -> AS] Sent: " << data << "\n";
                 } else {
-                    std::cout << "[DS Error] Not connected to Auth Server.\n";
+                    std::cerr << "[DS Error] Not connected to Auth Server.\n";
                 }
                 break;
 
@@ -221,11 +172,7 @@ void handleUserInput(int server_socket, const std::string &input, fd_set &master
             case CommandType::VALIDATE_RESP_CLIENT:
                 std::cout << "[DS -> DC] Sent: " << data << "\n";
                 // For now it sends this to every client
-                for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client_socket[i] > 0) {
-                        send(client_socket[i], data.c_str(), data.length(), 0);
-                    }
-                }
+                ds_handler.broadcastCommand(command);
                 break;
 
             default:
@@ -236,125 +183,75 @@ void handleUserInput(int server_socket, const std::string &input, fd_set &master
     }
 }
 
-int main(int argc, char *argv[]) {
-    int server_socket, new_socket, addrlen, max_sd, sd;
-    struct sockaddr_in address;
-    char buffer[BUFFER_SIZE];
-    fd_set master_set, read_set;
+bool checkConsoleInput() {
+    fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(STDIN_FILENO, &read_set);
+    timeval timeout{0, 0};
+    return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
+}
 
-    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        error_exit("socket failed");
+int main() {
+    signal(SIGPIPE, SIG_IGN);
+
+    ServerConnectionHandler ds_handler(DS_PORT);
+
+    ds_handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
+        std::cout << "[DS Log] Handling command from SD " << client_fd
+                << "\n" << handleCommand(command) << "\n";
+    });
+    ds_handler.setConnectCallback([&](const int client_fd) {
+        std::cout << "[DS Log] New client connected: " << client_fd << "\n";
+    });
+    ds_handler.setDisconnectCallback([&](const int client_fd) {
+        std::cout << "[DS Log] Client disconnected: " << client_fd << "\n";
+    });
+
+    bool as_connected;
+    std::unique_ptr<ClientConnectionHandler> as_handler = nullptr;
+    try {
+        as_handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", AS_PORT);
+        as_handler->setCallback([&](const std::unique_ptr<Command> &command) {
+            std::cout << "[DS Log] Handling command from AS ...\n"
+                    << handleCommand(command) << "\n";
+        });
+        as_connected = true;
+    } catch (...) {
+        as_connected = false;
+        std::cerr << "[DS Error] Could not connect to AS.\n";
     }
-    int opt = 1;
-    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *) &opt, sizeof(opt));
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(DS_PORT);
 
-    if (bind(server_socket, (struct sockaddr *) &address, sizeof(address)) < 0) {
-        error_exit("bind failed");
-    }
-    if (listen(server_socket, 3) < 0) error_exit("listen");
-
-    std::cout << "[DS Log] Dummy Server listening on port: " << DS_PORT << "\n";
-
-    connectToAuthServer();
-
-    FD_ZERO(&master_set);
-    FD_SET(server_socket, &master_set);
-    FD_SET(STDIN_FILENO, &master_set);
-
-    if (auth_server_socket > 0) {
-        FD_SET(auth_server_socket, &master_set);
-    }
-
-    while (true) {
-        read_set = master_set;
-        max_sd = server_socket;
-        if (auth_server_socket > max_sd) max_sd = auth_server_socket;
-        if (STDIN_FILENO > max_sd) max_sd = STDIN_FILENO;
-
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (client_socket[i] > 0 && client_socket[i] > max_sd) {
-                max_sd = client_socket[i];
-            }
+    bool run = true;
+    while (run) {
+        ds_handler.update();
+        if (as_connected && as_handler) {
+            if (!as_handler->isRunning()) {
+                std::cerr << "[DS Error] Auth Server disconnected.\n";
+                as_connected = false;
+            } else as_handler->update();
         }
 
-        int activity = select(max_sd + 1, &read_set, NULL, NULL, NULL);
-        if ((activity < 0)) std::cout << "[DS Error] Select error\n";
-
-        if (FD_ISSET(STDIN_FILENO, &read_set)) {
+        if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
-            if (!input.empty()) handleUserInput(server_socket, input, master_set);
-        }
 
-        if (FD_ISSET(server_socket, &read_set)) {
-            addrlen = sizeof(address);
-            if ((new_socket = accept(server_socket, (struct sockaddr *) &address, (socklen_t *) &addrlen)) < 0) {
-                perror("accept");
-            } else {
-                std::cout << "[DS Log] New Client connection. SD: " << new_socket << "\n";
-                FD_SET(new_socket, &master_set);
-                for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_socket[i] == 0) {
-                        client_socket[i] = new_socket;
-                        break;
-                    }
+            if (split(input)[0] == "exit") run = false;
+            if (split(input)[0] == "reconnect") {
+                try {
+                    as_handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", AS_PORT);
+                    as_handler->setCallback([&](const std::unique_ptr<Command> &command) {
+                        std::cout << "[DS Log] Handling command from AS ...\n"
+                                << handleCommand(command) << "\n";
+                    });
+                    as_connected = true;
+                } catch (...) {
+                    as_connected = false;
+                    std::cerr << "[DS Error] Could not reconnect to Auth Server.\n";
                 }
             }
-        }
-
-        // Handle AS
-        if (auth_server_socket > 0 && FD_ISSET(auth_server_socket, &read_set)) {
-            memset(buffer, 0, BUFFER_SIZE);
-            int valread = read(auth_server_socket, buffer, BUFFER_SIZE - 1);
-
-            if (valread <= 0) {
-                std::cout << "[DS Log] Auth Server disconnected.\n";
-                close(auth_server_socket);
-                FD_CLR(auth_server_socket, &master_set);
-                auth_server_socket = 0;
-            } else {
-                // AS sends plain text replies now
-                std::string msg(buffer, valread);
-                std::cout << "[DS Log] Received from AS: " << msg << "\n";
-            }
-        }
-
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            sd = client_socket[i];
-            if (sd > 0 && FD_ISSET(sd, &read_set)) {
-                memset(buffer, 0, BUFFER_SIZE);
-                int valread = read(sd, buffer, BUFFER_SIZE - 1);
-
-                if (valread == 0) {
-                    addrlen = sizeof(address);
-                    getpeername(sd, (struct sockaddr *) &address, (socklen_t *) &addrlen);
-                    std::cout << "[DS Log] Client disconnected.\n";
-                    close(sd);
-                    FD_CLR(sd, &master_set);
-                    client_socket[i] = 0;
-                } else {
-                    std::string data(buffer, valread);
-                    std::unique_ptr<Command> command;
-                    try {
-                        command = CommandFactory::create(data);
-                    } catch (...) {
-                        command = nullptr;
-                    }
-
-                    if (command) {
-                        std::string reply = handleCommand(command);
-                        std::cout << "[DS Log] " << reply << "\n";
-
-                        send(sd, reply.c_str(), reply.length(), 0);
-                    } else {
-                        std::cout << "[DS Reply] SD: " << sd << " " << data << "\n";
-                    }
-                }
+            if (!input.empty()) {
+                handleUserInput(ds_handler, as_handler.get(), input);
             }
         }
     }
-    return 0;
 }

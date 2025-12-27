@@ -4,12 +4,14 @@
 #include <functional>
 #include <memory>
 #include <iostream>
-#include <string>
 #include <cstring>
-#include <math.h>
+#include <cmath>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <fcntl.h>
+#include <cerrno>
+
 #include "../Command_Layer/Base/Command.hpp"
 #include "../Command_Layer/CommandFactory.hpp"
 
@@ -19,10 +21,10 @@ public:
     using ConnectCallback = std::function<void(int client_fd)>;
     using DisconnectCallback = std::function<void(int client_fd)>;
 
-    explicit ServerConnectionHandler(const int port) : m_port(port), m_socket(0) {
+    explicit ServerConnectionHandler(const int port) : m_port(port), m_socket(-1) {
         try {
             m_setupSocket();
-        } catch (std::exception e) {
+        } catch (std::exception &e) {
             std::cerr << "Socket Setup Failed: " << e.what() << "\n";
             exit(EXIT_FAILURE);
         }
@@ -30,6 +32,7 @@ public:
 
     // makes sure a single object is created
     ServerConnectionHandler(const ServerConnectionHandler &) = delete;
+
     ServerConnectionHandler &operator=(const ServerConnectionHandler &) = delete;
 
     ~ServerConnectionHandler() {
@@ -48,11 +51,17 @@ public:
         m_disconnectCallback = callback;
     }
 
-    int getSocket() const {
+    [[nodiscard]] int getSocket() const {
         return m_socket;
     }
 
+    [[nodiscard]] bool isRunning() const {
+        return m_socket > 0;
+    }
+
     void update() {
+        if (m_socket <= 0) return;
+
         fd_set read_set;
         FD_ZERO(&read_set);
         FD_SET(m_socket, &read_set);
@@ -67,16 +76,29 @@ public:
 
         timeval timeout{0, 5000};
         if (select(max_sd + 1, &read_set, nullptr, nullptr, &timeout) < 0) {
-            std::cerr << "Select error\n";
+            if (errno != EINTR) {
+                std::cerr << "Select error : " << errno << ".\n Removing broken sockets ...\n";
+                for (auto sd = m_client_sockets.begin(); sd != m_client_sockets.end();) {
+                    if (fcntl(*sd, F_GETFL) == -1) {
+                        std::cerr << "Removing socket " << *sd << "\n";
+                        sd = m_client_sockets.erase(sd);
+                    } else ++sd;
+                }
+            }
+            return;
         }
 
         if (FD_ISSET(m_socket, &read_set)) {
             m_handleConnection();
         }
-        for (auto const sd = m_client_sockets.begin(); sd != m_client_sockets.end();) {
+        for (auto sd = m_client_sockets.begin(); sd != m_client_sockets.end();) {
             if (FD_ISSET(*sd, &read_set)) {
-                m_handleData(*sd);
+                if (!m_handleData(*sd)) {
+                    sd = m_client_sockets.erase(sd);
+                    continue;
+                }
             }
+            ++sd;
         }
     }
 
@@ -87,7 +109,7 @@ public:
     }
 
     void broadcastCommand(const std::unique_ptr<Command> &cmd) const {
-        for (auto const sd = m_client_sockets.begin(); sd != m_client_sockets.end();) {
+        for (auto sd = m_client_sockets.begin(); sd != m_client_sockets.end(); ++sd) {
             sendCommand(*sd, cmd);
         }
     }
@@ -102,7 +124,7 @@ private:
     DisconnectCallback m_disconnectCallback;
 
     void m_setupSocket() {
-        sockaddr_in address;
+        sockaddr_in address{};
 
         if ((m_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
             std::cerr << "socket failed";
@@ -131,14 +153,14 @@ private:
     }
 
     void m_handleConnection() {
-        struct sockaddr_in client_address;
+        sockaddr_in client_address{};
         socklen_t addrlen = sizeof(client_address);
 
         const int new_socket = accept(m_socket,
-                                      reinterpret_cast<struct sockaddr *>(&client_address), &addrlen);
+            reinterpret_cast<struct sockaddr *>(&client_address), &addrlen);
         if (new_socket < 0) {
             std::cerr << "Accept client error\n";
-            return; // ide says it's redundant idk
+            return;
         }
 
         m_client_sockets.push_back(new_socket);
@@ -148,40 +170,39 @@ private:
         }
     }
 
-    void m_handleData(const int client_sd) {
+    [[nodiscard]] bool m_handleData(const int client_sd) const {
         char buffer[1024] = {0};
         memset(buffer, 0, 1024);
 
         const int valread = read(client_sd, buffer, 1024);
-        if (valread == 0) {
+        if (valread <= 0) {
             std::cout << "Client disconnected.\n";
-            std::erase(m_client_sockets, client_sd);
-
             if (m_disconnectCallback) {
                 m_disconnectCallback(client_sd);
             }
-
             close(client_sd);
-        } else if (valread < 0) {
-            std::cerr << "Read error\n";
-            return;
-        } else {
-            const std::string data(buffer, valread);
-            std::unique_ptr<Command> command;
-            try {
-                command = CommandFactory::create(data);
-            } catch (...) {
-                command = nullptr;
-            }
-            if (m_commandCallback && command) m_commandCallback(client_sd, std::move(command));
+            return false;
         }
+        const std::string data(buffer, valread);
+        std::unique_ptr<Command> command;
+        try {
+            command = CommandFactory::create(data);
+        } catch (...) {
+            command = nullptr;
+        }
+        if (m_commandCallback && command)
+            m_commandCallback(client_sd, std::move(command));
+        return true;
     }
 
     void m_disconnect() {
-        close(m_socket);
-        for (const int sd: m_client_sockets) close(sd);
-        m_client_sockets.clear();
-        std::cout << "Server stopped.\n";
+        if (m_socket > 0) {
+            close(m_socket);
+            m_socket = -1;
+            for (const int sd: m_client_sockets) close(sd);
+            m_client_sockets.clear();
+            std::cout << "Server stopped.\n";
+        }
     }
 };
 

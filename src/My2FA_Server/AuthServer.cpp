@@ -1,8 +1,4 @@
-#include <iostream>
-#include <cstring>
 #include <sstream>
-#include <vector>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
 
@@ -21,7 +17,7 @@ int client_socket[MAX_CLIENTS] = {0};
 
 std::string handleCommand(const std::unique_ptr<Command> &command) {
     std::ostringstream ss;
-    switch (command.get()->getType()) {
+    switch (command->getType()) {
         case CommandType::CONN: {
             const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
@@ -67,12 +63,12 @@ std::string handleCommand(const std::unique_ptr<Command> &command) {
             break;
         }
         default:
-            ss << "Invalid command type: " << static_cast<int>(command.get()->getType());
+            ss << "Invalid command type: " << static_cast<int>(command->getType());
     }
     return ss.str();
 }
 
-void handleUserInput(const ServerConnectionHandler &handler, const std::string &input) {
+void handleUserInput(ServerConnectionHandler &handler, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -89,9 +85,9 @@ void handleUserInput(const ServerConnectionHandler &handler, const std::string &
     } else if (args[0] == "clients") {
         std::cout << "[AS Log] Active Sockets: ";
         bool found = false;
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            if (client_socket[i] > 0) {
-                std::cout << client_socket[i] << " ";
+        for (const int i : client_socket) {
+            if (i > 0) {
+                std::cout << i << " ";
                 found = true;
             }
         }
@@ -103,32 +99,32 @@ void handleUserInput(const ServerConnectionHandler &handler, const std::string &
         exit(0);
     } else if (args[0] == "send_notif") {
         if (args.size() < 2) {
-            std::cout << "[AS Error] Usage: send_notif <appid>\n";
+            std::cerr << "[AS Error] Usage: send_notif <appid>\n";
             return;
         }
         command = std::make_unique<SendNotificationCommand>(std::stoi(args[1]));
     } else if (args[0] == "code_resp") {
         if (args.size() < 2) {
-            std::cout << "[AS Error] Usage: code_resp <code>\n";
+            std::cerr << "[AS Error] Usage: code_resp <code>\n";
             return;
         }
         command = std::make_unique<CodeResponseCommand>(std::stoi(args[1]));
     } else if (args[0] == "notif_resp_server") {
         if (args.size() < 3) {
-            std::cout << "[AS Error] Usage: notif_resp_server <1/0> <uuid>\n";
+            std::cerr << "[AS Error] Usage: notif_resp_server <1/0> <uuid>\n";
             return;
         }
         bool resp = (args[1] == "1" || args[1] == "true");
         command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
     } else if (args[0] == "validate_resp_server") {
         if (args.size() < 4) {
-            std::cout << "[AS Error] Usage: validate_resp_server <1/0> <uuid> <appid>\n";
+            std::cerr << "[AS Error] Usage: validate_resp_server <1/0> <uuid> <appid>\n";
             return;
         }
         bool resp = (args[1] == "1" || args[1] == "true");
         command = std::make_unique<ValidateResponseServerCommand>(resp, args[2], std::stoi(args[3]));
     } else {
-        std::cout << "[AS Error] Unknown command. Type 'help'.\n";
+        std::cerr << "[AS Error] Unknown command. Type 'help'.\n";
         return;
     }
 
@@ -149,7 +145,7 @@ void handleUserInput(const ServerConnectionHandler &handler, const std::string &
                 break;
 
             default:
-                std::cout << "[AS Error] No routing rule defined for Command ID "
+                std::cerr << "[AS Error] No routing rule defined for Command ID "
                         << static_cast<int>(command->getType()) << "\n";
                 break;
         }
@@ -177,12 +173,14 @@ int main() {
         std::cout << "[AS Log] Client disconnected: " << client_fd << "\n";
     });
 
-    while (true) {
+    bool run = true;
+    while (run) {
         handler.update();
 
         if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
+            if (split(input)[0] == "exit") run = false;
             handleUserInput(handler, input);
         }
     }
