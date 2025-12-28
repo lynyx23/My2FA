@@ -104,7 +104,7 @@ public:
 
     // ReSharper disable once CppMemberFunctionMayBeStatic
     void sendCommand(const int client_sd, const std::unique_ptr<Command> &cmd) const {
-        const std::string data = cmd->serialize();
+        const std::string data = cmd->execute();
         send(client_sd, data.c_str(), data.length(), 0);
     }
 

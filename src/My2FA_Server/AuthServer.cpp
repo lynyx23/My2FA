@@ -8,20 +8,23 @@
 #include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
 #include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
 #include "../Connection_Layer/ServerConnectionHandler.hpp"
+#include "../Session_Manager/SessionManager.hpp"
 
 #define PORT 27701 // Auth port
 #define MAX_CLIENTS 30
 #define BUFFER_SIZE 1024
 
-int client_socket[MAX_CLIENTS] = {0};
-
-std::string handleCommand(const std::unique_ptr<Command> &command) {
+std::string handleCommand(const std::unique_ptr<Command> &command, SessionManager &session_manager, int client_fd) {
     std::ostringstream ss;
     switch (command->getType()) {
         case CommandType::CONN: {
             const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
+            session_manager.m_handleHandshake(client_fd, cmd->getConnectionType());
+
             ss << "Received command CONN: Type = " << cmd->getConnectionType()
-                    << " , ID = " << cmd->getId();
+                    << " , ID = " << cmd->getId() << "\n"
+                    << "[Session Manager] Session Updated: " << session_manager.getID(client_fd)
+                    << " " << session_manager.getEntityType(client_fd);
             break;
         }
         case CommandType::ERR: {
@@ -68,7 +71,7 @@ std::string handleCommand(const std::unique_ptr<Command> &command) {
     return ss.str();
 }
 
-void handleUserInput(ServerConnectionHandler &handler, const std::string &input) {
+void handleUserInput(ServerConnectionHandler &handler, const std::string &input, SessionManager &session_manager) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -83,17 +86,7 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input)
                 << "  exit                                        : Shut down the server.\n";
         return;
     } else if (args[0] == "clients") {
-        std::cout << "[AS Log] Active Sockets: ";
-        bool found = false;
-        for (const int i : client_socket) {
-            if (i > 0) {
-                std::cout << i << " ";
-                found = true;
-            }
-        }
-        if (!found) std::cout << "None.";
-        std::cout << "\n";
-        return;
+        session_manager.displayConnections();
     } else if (args[0] == "exit") {
         std::cout << "[AS Log] Shutting down...\n";
         exit(0);
@@ -129,7 +122,7 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input)
     }
 
     if (command) {
-        const std::string data = command->serialize();
+        const std::string data = command->execute();
 
         switch (command->getType()) {
             case CommandType::SEND_NOTIF:
@@ -161,17 +154,21 @@ bool checkConsoleInput() {
 }
 
 int main() {
+    SessionManager session_manager;
     ServerConnectionHandler handler(PORT);
     handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
         std::cout << "[AS Log] Handling command from SD " << client_fd
-                << "\n" << handleCommand(command) << "\n";
+                << "\n" << handleCommand(command, session_manager, client_fd) << "\n";
     });
     handler.setConnectCallback([&](const int client_fd) {
+        session_manager.addSession(client_fd);
         std::cout << "[AS Log] New client connected: " << client_fd << "\n";
     });
     handler.setDisconnectCallback([&](const int client_fd) {
+        session_manager.removeSession(client_fd);
         std::cout << "[AS Log] Client disconnected: " << client_fd << "\n";
     });
+
 
     bool run = true;
     while (run) {
@@ -181,7 +178,7 @@ int main() {
             std::string input;
             std::getline(std::cin, input);
             if (split(input)[0] == "exit") run = false;
-            handleUserInput(handler, input);
+            handleUserInput(handler, input, session_manager);
         }
     }
 }

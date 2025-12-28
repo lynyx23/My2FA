@@ -15,7 +15,7 @@ public:
         : code(errCode), msg(std::move(message)) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::ERR) << DELIMITER << code << DELIMITER << msg;
         return ss.str();

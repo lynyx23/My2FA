@@ -14,7 +14,7 @@ public:
         : response(response), appid(appid) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::NOTIF_RESP_CLIENT) << DELIMITER
                 << static_cast<int>(response) << DELIMITER << appid;

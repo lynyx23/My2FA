@@ -15,7 +15,7 @@ public:
         : username(std::move(user)), password(std::move(pass)) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::LOGIN_REQ) << DELIMITER << username << DELIMITER << password;
         return ss.str();

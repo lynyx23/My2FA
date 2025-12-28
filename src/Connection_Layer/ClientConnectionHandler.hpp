@@ -51,7 +51,7 @@ public:
             return;
         }
 
-        const std::string data = cmd->serialize();
+        const std::string data = cmd->execute();
         send(m_socket, data.c_str(), data.length(), 0);
     }
 

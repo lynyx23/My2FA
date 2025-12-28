@@ -57,7 +57,7 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
     }
 
     if (command) {
-        const std::string data = command->serialize();
+        const std::string data = command->execute();
         if (handler && handler->isRunning()) {
             handler->sendCommand(command);
             std::cout << "[AC -> AS] Sent: " << data << "\n";

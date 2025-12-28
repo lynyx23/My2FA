@@ -8,7 +8,7 @@ class Command {
 public:
     virtual ~Command() = default;
 
-    [[nodiscard]] virtual std::string serialize() const = 0; // Object -> String
+    [[nodiscard]] virtual std::string execute() const = 0; // Object -> String
     [[nodiscard]] virtual CommandType getType() const = 0; // Returns the type of Command from the enum class
 };
 

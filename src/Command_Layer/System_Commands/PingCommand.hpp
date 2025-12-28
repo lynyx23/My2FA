@@ -9,7 +9,7 @@ class PingCommand : public Command {
 public:
     PingCommand() = default;
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::PING);
         return ss.str();

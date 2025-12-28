@@ -14,7 +14,7 @@ public:
         : uuid(std::move(uuid)) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::REQ_NOTIF_CLIENT) << DELIMITER << uuid;
         return ss.str();

@@ -12,7 +12,7 @@ public:
     explicit CodeResponseCommand(const int code) : code(code) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::stringstream ss;
         ss << static_cast<int>(CommandType::CODE_RESP) << DELIMITER << code;
         return ss.str();

@@ -16,7 +16,7 @@ public:
         : connection_type(std::move(type)), id(std::move(connectionId)) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::CONN) << DELIMITER << connection_type << DELIMITER << id;
         return ss.str();

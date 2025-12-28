@@ -16,7 +16,7 @@ public:
         : code(code), uuid(std::move(uuid)), appid(appid) {
     }
 
-    [[nodiscard]] std::string serialize() const override {
+    [[nodiscard]] std::string execute() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::VALIDATE_CODE_SERVER)
                 << DELIMITER << code << DELIMITER << uuid << DELIMITER << appid;
