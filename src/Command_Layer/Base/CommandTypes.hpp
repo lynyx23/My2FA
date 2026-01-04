@@ -1,7 +1,9 @@
 #ifndef MY2FA_COMMANDTYPES_HPP
 #define MY2FA_COMMANDTYPES_HPP
 
-enum class CommandType {
+#include <cstdint>
+
+enum class CommandType : uint8_t {
     // System Commands
     CONN = 1,
     PING = 2,

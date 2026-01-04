@@ -15,11 +15,13 @@ public:
         : code(errCode), msg(std::move(message)) {
     }
 
-    [[nodiscard]] std::string execute() const override {
+    [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::ERR) << DELIMITER << code << DELIMITER << msg;
         return ss.str();
     }
+
+    void execute(ServerContext &ctx, int client_fd) override {};
 
     [[nodiscard]] CommandType getType() const override {
         return CommandType::ERR;

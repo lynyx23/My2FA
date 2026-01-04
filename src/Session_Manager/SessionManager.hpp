@@ -1,25 +1,12 @@
 #ifndef MY2FA_SESSIONMANAGER_HPP
 #define MY2FA_SESSIONMANAGER_HPP
 
+#pragma once
+#include <iostream>
 #include <string>
 #include <map>
 #include <memory>
-
-enum class EntityType {
-    AUTH_SERVER,
-    AUTH_CLIENT,
-    DUMMY_SERVER,
-    DUMMY_CLIENT,
-    NOT_ASSIGNED
-};
-
-inline EntityType stringToEntityType(const std::string &data) {
-    if (data == "AUTH_SERVER") return EntityType::AUTH_SERVER;
-    if (data == "AUTH_CLIENT") return EntityType::AUTH_CLIENT;
-    if (data == "DUMMY_SERVER") return EntityType::DUMMY_SERVER;
-    if (data == "DUMMY_CLIENT") return EntityType::DUMMY_CLIENT;
-    return EntityType::NOT_ASSIGNED;
-}
+#include "Command_Layer/Base/EntityType.hpp"
 
 inline std::string stringifyEntityType(const EntityType &type) {
     switch (type) {
@@ -60,10 +47,11 @@ public:
         std::cout << "[SM Log] Session removed: " << id << "\n";
     }
 
-    void m_handleHandshake(const int id, const std::string &data) {
+    void m_handleHandshake(const int id, const EntityType type) {
         if (m_sessions.contains(id)) {
             if (m_sessions[id]->type == EntityType::NOT_ASSIGNED) {
-                m_sessions[id]->type = stringToEntityType(data);
+                m_sessions[id]->type = type;
+                std::cout << "[SM Log] Handshake successful: " << id << " " << type << "\n";
             }
         }
     }
@@ -76,6 +64,12 @@ public:
         }
     }
 
+    void setIsLogged(const int id, const bool isLogged) {
+        if (m_sessions.contains(id)) {
+            m_sessions[id]->isLogged = isLogged;
+        }
+    }
+
     int getID(const int id) {
         return m_sessions[id]->id;
     }
@@ -84,8 +78,8 @@ public:
         return m_sessions[id]->uuid;
     }
 
-    std::string getEntityType(const int id) {
-        return stringifyEntityType(m_sessions[id]->type);
+    EntityType getEntityType(const int id) {
+        return m_sessions[id]->type;
     }
 
     bool getIsLogged(const int id) {
@@ -94,8 +88,6 @@ public:
 
 private:
     std::map<int, std::shared_ptr<Session>> m_sessions;
-
-
 };
 
 #endif //MY2FA_SESSIONMANAGER_HPP

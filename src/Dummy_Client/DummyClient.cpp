@@ -60,7 +60,7 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
     }
 
     if (command) {
-        const std::string data = command->execute();
+        const std::string data = command->serialize();
         if (handler && handler->isRunning()) {
             handler->sendCommand(command);
             std::cout << "[DC -> DS] Sent: " << data << "\n";

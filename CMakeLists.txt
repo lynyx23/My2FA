@@ -14,8 +14,12 @@ find_package(Qt6 COMPONENTS
         Widgets
         REQUIRED)
 
-# Shared CommandLayer library so that we don't build it or write the config multiple times
-add_library(CommandLayerLib STATIC
+find_package(SQLiteCpp REQUIRED)
+find_package(OpenSSL REQUIRED)
+
+# VAULTED! Shared CommandLayer library so that we don't build it or write the config multiple times
+# A shared list will be used so that we can use compile definitions for the servers
+set(COMMAND_LAYER
         src/Command_Layer/CommandFactory.hpp
         src/Command_Layer/CommandFactory.cpp
 
@@ -45,37 +49,50 @@ add_library(CommandLayerLib STATIC
         src/Command_Layer/Code_Login/ValidateCodeServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseClientCommand.hpp
+        src/Command_Layer/ServerContext.hpp
+        src/Command_Layer/System_Commands/ConnectCommand.cpp
+        src/Command_Layer/Base/EntityType.hpp
+        src/Command_Layer/Credential_Login/LoginRequestCommand.cpp
 )
-
-target_include_directories(CommandLayerLib PUBLIC src)
-
-target_link_libraries(CommandLayerLib PRIVATE Qt::Core)
 
 add_executable(AuthServer
-        src/My2FA_Server/AuthServer.cpp
+        src/My2FA_Server/2FAServer.cpp
+        ${COMMAND_LAYER}
         src/Connection_Layer/ServerConnectionHandler.hpp
         src/Session_Manager/SessionManager.hpp
+        src/Auth_Layer/AuthManager.hpp
+        src/Auth_Layer/AuthManager.cpp
 )
 
+target_compile_definitions(AuthServer PRIVATE SERVER_SIDE)
+
+target_include_directories(AuthServer PUBLIC src)
+
 target_link_libraries(AuthServer PRIVATE
-        CommandLayerLib
-        Qt::Core
+        SQLiteCpp
+        OpenSSL::Crypto
+        OpenSSL::SSL
 )
 
 add_executable(AuthClient
-        src/My2FA_Client/AuthClient.cpp
+        src/My2FA_Client/2FAClient.cpp
+        ${COMMAND_LAYER}
         src/Connection_Layer/ClientConnectionHandler.hpp
 )
 
+target_include_directories(AuthClient PUBLIC src)
+
 target_link_libraries(AuthClient PRIVATE
-        CommandLayerLib
         Qt::Core
 )
 
 add_executable(DummyServer
         src/Dummy_Server/DummyServer.cpp
         src/Connection_Layer/ServerConnectionHandler.hpp
-        src/Session_Manager/SessionManager.hpp)
+        src/Session_Manager/SessionManager.hpp
+)
+
+target_include_directories(DummyServer PUBLIC src)
 
 target_link_libraries(DummyServer PRIVATE
         CommandLayerLib
@@ -83,9 +100,21 @@ target_link_libraries(DummyServer PRIVATE
 )
 add_executable(DummyClient
         src/Dummy_Client/DummyClient.cpp
-        src/Connection_Layer/ClientConnectionHandler.hpp)
+        src/Connection_Layer/ClientConnectionHandler.hpp
+)
 
 target_link_libraries(DummyClient PRIVATE
         CommandLayerLib
         Qt::Core
+)
+
+add_executable(DatabaseTest src/Auth_Layer/Database_Test.cpp
+        src/Auth_Layer/AuthManager.hpp
+        src/Auth_Layer/AuthManager.cpp)
+
+target_include_directories(DatabaseTest PUBLIC src)
+
+target_link_libraries(DatabaseTest PRIVATE
+        SQLiteCpp
+        OpenSSL::Crypto
 )

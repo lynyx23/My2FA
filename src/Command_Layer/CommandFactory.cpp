@@ -1,6 +1,8 @@
 #include <vector>
 #include <string>
+#include <iostream>
 #include "Base/Command.hpp"
+#include "Base/EntityType.hpp"
 #include "CommandFactory.hpp"
 #include "System_Commands/SystemCommands.hpp"
 #include "Credential_Login/CredentialLoginCommands.hpp"
@@ -21,8 +23,14 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
 
     switch (auto type_cmd = static_cast<CommandType>(type_int)) {
         case CommandType::CONN:
-            if (args.size() == 3) {
-                return std::make_unique<ConnectCommand>(args[1], args[2]);
+            if (args.size() == 2) {
+                try {
+                    int type = std::stoi(args[1]);
+                    return std::make_unique<ConnectCommand>(static_cast<EntityType>(type));
+                } catch (std::exception e) {
+                    std::cerr << "[CF Error] CONN - Invalid type: " << e.what() << "\n";
+                    return nullptr;
+                }
             }
             break;
         case CommandType::PING:

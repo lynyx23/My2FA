@@ -1,37 +1,21 @@
 #ifndef MY2FA_LOGINREQUESTCOMMAND_HPP
 #define MY2FA_LOGINREQUESTCOMMAND_HPP
 
-#include <sstream>
-#include <utility>
-#include "../Base/Command.hpp"
+#pragma once
+#include "Command_Layer/Base/Command.hpp"
 
 class LoginRequestCommand : public Command {
-private:
-    std::string username;
-    std::string password;
-
 public:
-    LoginRequestCommand(std::string user, std::string pass)
-        : username(std::move(user)), password(std::move(pass)) {
-    }
+    LoginRequestCommand(std::string user, std::string pass);
+    [[nodiscard]] std::string serialize() const override;
+    void execute(ServerContext &ctx, int client_fd) override;
+    [[nodiscard]] CommandType getType() const override;
+    [[nodiscard]] std::string getUsername() const;
+    [[nodiscard]] std::string getPassword() const;
 
-    [[nodiscard]] std::string execute() const override {
-        std::ostringstream ss;
-        ss << static_cast<int>(CommandType::LOGIN_REQ) << DELIMITER << username << DELIMITER << password;
-        return ss.str();
-    }
-
-    [[nodiscard]] CommandType getType() const override {
-        return CommandType::LOGIN_REQ;
-    }
-
-    [[nodiscard]] std::string getUsername() const {
-        return username;
-    }
-
-    [[nodiscard]] std::string getPassword() const {
-        return password;
-    }
+private:
+    std::string m_username;
+    std::string m_password;
 };
 
 #endif //MY2FA_LOGINREQUESTCOMMAND_HPP

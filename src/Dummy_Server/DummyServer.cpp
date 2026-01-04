@@ -147,7 +147,7 @@ void handleUserInput(ServerConnectionHandler &ds_handler,
     }
 
     if (command) {
-        const std::string data = command->execute();
+        const std::string data = command->serialize();
 
         switch (command->getType()) {
             case CommandType::CONN:

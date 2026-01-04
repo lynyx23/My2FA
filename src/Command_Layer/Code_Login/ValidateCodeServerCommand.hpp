@@ -16,12 +16,14 @@ public:
         : code(code), uuid(std::move(uuid)), appid(appid) {
     }
 
-    [[nodiscard]] std::string execute() const override {
+    [[nodiscard]] std::string serialize() const override {
         std::ostringstream ss;
         ss << static_cast<int>(CommandType::VALIDATE_CODE_SERVER)
                 << DELIMITER << code << DELIMITER << uuid << DELIMITER << appid;
         return ss.str();
     }
+
+    void execute(ServerContext &ctx, int client_fd) override {};
 
     [[nodiscard]] CommandType getType() const override {
         return CommandType::VALIDATE_CODE_SERVER;

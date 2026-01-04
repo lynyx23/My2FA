@@ -2,73 +2,63 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#include "../Command_Layer/CommandFactory.hpp"
-#include "../Command_Layer/System_Commands/SystemCommands.hpp"
-#include "../Command_Layer/Credential_Login/CredentialLoginCommands.hpp"
-#include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
-#include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
-#include "../Connection_Layer/ServerConnectionHandler.hpp"
-#include "../Session_Manager/SessionManager.hpp"
+#include "Command_Layer/CommandFactory.hpp"
+#include "Command_Layer/System_Commands/SystemCommands.hpp"
+#include "Command_Layer/Credential_Login/CredentialLoginCommands.hpp"
+#include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
+#include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
+#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include "Session_Manager/SessionManager.hpp"
+#include "Auth_Layer/AuthManager.hpp"
+#include "Command_Layer/ServerContext.hpp"
 
 #define PORT 27701 // Auth port
 #define MAX_CLIENTS 30
 #define BUFFER_SIZE 1024
 
-std::string handleCommand(const std::unique_ptr<Command> &command, SessionManager &session_manager, int client_fd) {
-    std::ostringstream ss;
-    switch (command->getType()) {
-        case CommandType::CONN: {
-            const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
-            session_manager.m_handleHandshake(client_fd, cmd->getConnectionType());
-
-            ss << "Received command CONN: Type = " << cmd->getConnectionType()
-                    << " , ID = " << cmd->getId() << "\n"
-                    << "[Session Manager] Session Updated: " << session_manager.getID(client_fd)
-                    << " " << session_manager.getEntityType(client_fd);
-            break;
-        }
-        case CommandType::ERR: {
-            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
-            ss << "Received command ERR: Type = " << cmd->getCode()
-                    << " , Msg = " << cmd->getMessage();
-            break;
-        }
-        case CommandType::LOGIN_REQ: {
-            const auto *cmd = dynamic_cast<const LoginRequestCommand *>(command.get());
-            ss << "Received command LOGIN_REQ: User = " << cmd->getUsername()
-                    << " , Password = " << cmd->getPassword();
-            break;
-        }
-        case CommandType::REQ_NOTIF_SERVER: {
-            const auto *cmd = dynamic_cast<const RequestNotificationServerCommand *>(command.get());
-            ss << "Received command REQ_NOTIF_SERVER: UUID = " << cmd->getUuid()
-                    << " , AppID = " << cmd->getAppid();
-            break;
-        }
-        case CommandType::NOTIF_RESP_CLIENT: {
-            const auto *cmd = dynamic_cast<const NotificationResponseClientCommand *>(command.get());
-            ss << "Received command NOTIF_RESP_CLIENT: Response = "
-                    << (cmd->getResponse() ? "True" : "False")
-                    << " , AppID = " << cmd->getAppid();
-            break;
-        }
-        case CommandType::REQ_CODE_CLIENT: {
-            const auto *cmd = dynamic_cast<const RequestCodeClientCommand *>(command.get());
-            ss << "Received command REQ_CODE_CLIENT: UUID = " << cmd->getUuid()
-                    << " , AppID = " << cmd->getAppid();
-            break;
-        }
-        case CommandType::VALIDATE_CODE_SERVER: {
-            const auto *cmd = dynamic_cast<const ValidateCodeServerCommand *>(command.get());
-            ss << "Received command VALIDATE_CODE_SERVER: Code = " << cmd->getCode()
-                    << " , UUID = " << cmd->getUuid()
-                    << " , AppID = " << cmd->getAppid();
-            break;
-        }
-        default:
-            ss << "Invalid command type: " << static_cast<int>(command->getType());
+void handleCommand(const std::unique_ptr<Command> &command, const int client_fd, ServerContext &ctx) {
+    if (!command) {
+        std::cerr << "[AS Error] Received invalid command from client " << client_fd << "\n";
+        return;
     }
-    return ss.str();
+
+    try {
+        command->execute(ctx, client_fd);
+    } catch (const std::exception &e) {
+        std::cerr << "[AS Error] Command execution failed: " << e.what() << "\n";
+    }
+        // case CommandType::ERR: {
+        //     const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
+        //     ss << "Received command ERR: Type = " << cmd->getCode()
+        //             << " , Msg = " << cmd->getMessage();
+        //     break;
+        // }
+        // case CommandType::REQ_NOTIF_SERVER: {
+        //     const auto *cmd = dynamic_cast<const RequestNotificationServerCommand *>(command.get());
+        //     ss << "Received command REQ_NOTIF_SERVER: UUID = " << cmd->getUuid()
+        //             << " , AppID = " << cmd->getAppid();
+        //     break;
+        // }
+        // case CommandType::NOTIF_RESP_CLIENT: {
+        //     const auto *cmd = dynamic_cast<const NotificationResponseClientCommand *>(command.get());
+        //     ss << "Received command NOTIF_RESP_CLIENT: Response = "
+        //             << (cmd->getResponse() ? "True" : "False")
+        //             << " , AppID = " << cmd->getAppid();
+        //     break;
+        // }
+        // case CommandType::REQ_CODE_CLIENT: {
+        //     const auto *cmd = dynamic_cast<const RequestCodeClientCommand *>(command.get());
+        //     ss << "Received command REQ_CODE_CLIENT: UUID = " << cmd->getUuid()
+        //             << " , AppID = " << cmd->getAppid();
+        //     break;
+        // }
+        // case CommandType::VALIDATE_CODE_SERVER: {
+        //     const auto *cmd = dynamic_cast<const ValidateCodeServerCommand *>(command.get());
+        //     ss << "Received command VALIDATE_CODE_SERVER: Code = " << cmd->getCode()
+        //             << " , UUID = " << cmd->getUuid()
+        //             << " , AppID = " << cmd->getAppid();
+        //     break;
+        // }
 }
 
 void handleUserInput(ServerConnectionHandler &handler, const std::string &input, SessionManager &session_manager) {
@@ -122,7 +112,7 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input,
     }
 
     if (command) {
-        const std::string data = command->execute();
+        const std::string data = command->serialize();
 
         switch (command->getType()) {
             case CommandType::SEND_NOTIF:
@@ -154,11 +144,15 @@ bool checkConsoleInput() {
 }
 
 int main() {
+    auto auth_manager = std::make_unique<AuthManager>("as");
     SessionManager session_manager;
+    ServerContext ctx{session_manager,auth_manager.get()}; //maybe move to commandCallbacka
+
     ServerConnectionHandler handler(PORT);
     handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
-        std::cout << "[AS Log] Handling command from SD " << client_fd
-                << "\n" << handleCommand(command, session_manager, client_fd) << "\n";
+        std::cout << "[AS Log] Handling command from Client: " << client_fd << " ("
+            << ctx.session_manager.getEntityType(client_fd) << ")\n";
+        handleCommand(command, client_fd, ctx);
     });
     handler.setConnectCallback([&](const int client_fd) {
         session_manager.addSession(client_fd);

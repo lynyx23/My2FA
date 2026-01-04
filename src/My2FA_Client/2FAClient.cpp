@@ -1,8 +1,9 @@
-#include "../Command_Layer/CommandFactory.hpp"
-#include "../Command_Layer/System_Commands/SystemCommands.hpp"
-#include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
-#include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
-#include "../Connection_Layer/ClientConnectionHandler.hpp"
+#include "Command_Layer/CommandFactory.hpp"
+#include "Command_Layer/System_Commands/SystemCommands.hpp"
+#include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
+#include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
+#include "Connection_Layer/ClientConnectionHandler.hpp"
+#include "Command_Layer/Credential_Login/LoginRequestCommand.hpp"
 
 #define PORT 27701
 
@@ -14,7 +15,7 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
     // note: switch won't work with strings
     if (args[0] == "help") {
         std::cout << "  help                   : Show this menu\n"
-                << "  conn <id>              : Handshake (e.g. conn;12)\n"
+                << "  conn                   : Handshake (e.g. conn)\n"
                 << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
                 << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
                 << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
@@ -22,13 +23,8 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
                 << "  exit                   : Quit\n";
         return;
     } else if (args[0] == "reconnect") return;
-    else if (args[0] == "conn") {
-        if (args.size() != 2) {
-            std::cerr << "[AC Error] Incorrect format: conn <id>\n ";
-            return;
-        }
-        command = std::make_unique<ConnectCommand>("AUTH_CLIENT", args[1]);
-    } else if (args[0] == "accept") {
+    else if (args[0] == "conn") command = std::make_unique<ConnectCommand>(EntityType::AUTH_CLIENT);
+    else if (args[0] == "accept") {
         if (args.size() < 2) {
             std::cerr << "[AC Error] Incorrect format: accept <appid>\n ";
             return;
@@ -51,13 +47,19 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
             std::cerr << "[AC Error] Code must be an integer.\n";
             return;
         }
+    } else if (args[0] == "login") {
+        if (args.size() != 3) {
+            std::cerr << "[AC Error] Incorrect format: login <user> <pass>\n ";
+            return;
+        }
+        command = std::make_unique<LoginRequestCommand>(args[1], args[2]);
     } else {
         std::cout << "[AC Error] Unknown command! Type help.\n ";
         return;
     }
 
     if (command) {
-        const std::string data = command->execute();
+        const std::string data = command->serialize();
         if (handler && handler->isRunning()) {
             handler->sendCommand(command);
             std::cout << "[AC -> AS] Sent: " << data << "\n";

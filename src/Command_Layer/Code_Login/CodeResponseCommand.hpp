@@ -12,11 +12,13 @@ public:
     explicit CodeResponseCommand(const int code) : code(code) {
     }
 
-    [[nodiscard]] std::string execute() const override {
+    [[nodiscard]] std::string serialize() const override {
         std::stringstream ss;
         ss << static_cast<int>(CommandType::CODE_RESP) << DELIMITER << code;
         return ss.str();
     }
+
+    void execute(ServerContext &ctx, int client_fd) override {};
 
     [[nodiscard]] CommandType getType() const override {
         return CommandType::CODE_RESP;
