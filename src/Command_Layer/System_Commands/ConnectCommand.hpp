@@ -8,7 +8,7 @@ class ConnectCommand : public Command {
 public:
     explicit ConnectCommand(EntityType type);
     [[nodiscard]] std::string serialize() const override;
-    void execute(ServerContext &ctx, int client_fd) override;
+    void execute(Context &ctx, int fd) override;
     [[nodiscard]] CommandType getType() const override;
     [[nodiscard]] EntityType getConnectionType() const;
 

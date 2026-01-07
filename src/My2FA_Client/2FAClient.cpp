@@ -1,13 +1,15 @@
-#include "Command_Layer/CommandFactory.hpp"
-#include "Command_Layer/System_Commands/SystemCommands.hpp"
-#include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
 #include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
-#include "Connection_Layer/ClientConnectionHandler.hpp"
+#include "Command_Layer/CommandFactory.hpp"
+#include "Command_Layer/Context.hpp"
 #include "Command_Layer/Credential_Login/LoginRequestCommand.hpp"
+#include "Command_Layer/Credential_Login/LogoutRequestCommand.hpp"
+#include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
+#include "Command_Layer/System_Commands/SystemCommands.hpp"
+#include "Connection_Layer/ClientConnectionHandler.hpp"
 
 #define PORT 27701
 
-void handleUserInput(ClientConnectionHandler *handler, const std::string &input) {
+void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
@@ -53,6 +55,8 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
             return;
         }
         command = std::make_unique<LoginRequestCommand>(args[1], args[2]);
+    } else if (args[0] == "logout") {
+        command = std::make_unique<LogoutRequestCommand>(ctx.uuid);
     } else {
         std::cout << "[AC Error] Unknown command! Type help.\n ";
         return;
@@ -67,25 +71,36 @@ void handleUserInput(ClientConnectionHandler *handler, const std::string &input)
     }
 }
 
-std::string handleCommand(const std::unique_ptr<Command> &command) {
-    std::ostringstream ss;
-    switch (command->getType()) {
-        case CommandType::ERR: {
-            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
-            ss << "Received command ERR: Type = " << cmd->getCode()
-                    << " , Msg = " << cmd->getMessage();
-            break;
-        }
-        case CommandType::SEND_NOTIF: {
-            const auto *cmd = dynamic_cast<const SendNotificationCommand *>(command.get());
-            ss << "Received command SEND_NOTIF: AppID = " << cmd->getAppid();
-            break;
-        }
-        default:
-            ss << "Invalid or Unexpected command type: "
-                    << static_cast<int>(command->getType());
+void handleCommand(Context &ctx, ClientConnectionHandler *handler,
+    const std::unique_ptr<Command> &command, const int fd) {
+    if (!command) {
+        std::cerr << "[AC Error] Received invalid command from server.\n";
+        return;
     }
-    return ss.str();
+    try {
+        command->execute(ctx, fd);
+    } catch (const std::exception &e) {
+        std::cerr << "[AC Error] Command execution failed: " << e.what() << "\n";
+    }
+    // std::ostringstream ss;
+    // switch (command->getType()) {
+    //     case CommandType::ERR: {
+    //         const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
+    //         ss << "Received command ERR: Type = " << cmd->getCode()
+    //                 << " , Msg = " << cmd->getMessage();
+    //         break;
+    //     }
+    //     case CommandType::SEND_NOTIF: {
+    //         const auto *cmd = dynamic_cast<const SendNotificationCommand *>(command.get());
+    //         ss << "Received command SEND_NOTIF: AppID = " << cmd->getAppid();
+    //         break;
+    //     }
+    //     default:
+    //         ss << "Invalid or Unexpected command type: "
+    //                 << static_cast<int>(command->getType());
+    // }
+    // return ss.str();
+
 }
 
 bool checkConsoleInput() {
@@ -98,11 +113,15 @@ bool checkConsoleInput() {
 
 int main() {
     bool is_connected;
+
+    Context ctx{false, "0"};
+
     std::unique_ptr<ClientConnectionHandler> handler = nullptr;
     try {
         handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
-        handler->setCallback([&](const std::unique_ptr<Command> &command) {
-            std::cout << "[AC Log] Handling command ...\n" << handleCommand(command) << "\n";
+        handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
+            std::cout << "[AC Log] Handling command ...\n";
+            handleCommand(ctx, handler.get(), command, fd);
         });
         is_connected = true;
     } catch (...) {
@@ -122,24 +141,24 @@ int main() {
         if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
-            if (split(input)[0] == "exit") {
-                run = false;
-            }
-            if (split(input)[0] == "reconnect") {
-                try {
-                    handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
-                    handler->setCallback([&](const std::unique_ptr<Command> &command) {
-                        std::cout << "[AC Log] Handling command ...\n"
-                                << handleCommand(command) << "\n";
-                    });
-                    is_connected = true;
-                } catch (...) {
-                    is_connected = false;
-                    std::cerr << "[AC Error] Connection to AS Failed." << "\n";
-                }
-            }
             if (!input.empty()) {
-                handleUserInput(handler.get(), input);
+                if (split(input)[0] == "exit") {
+                    run = false;
+                }
+                if (split(input)[0] == "reconnect") {
+                    try {
+                        handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
+                        handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
+                            std::cout << "[AC Log] Handling command ...\n";
+                            handleCommand(ctx, handler.get(), command, fd);
+                        });
+                        is_connected = true;
+                    } catch (...) {
+                        is_connected = false;
+                        std::cerr << "[AC Error] Connection to AS Failed." << "\n";
+                    }
+                }
+                handleUserInput(ctx, handler.get(), input);
             }
         }
     }

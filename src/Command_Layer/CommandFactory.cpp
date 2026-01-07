@@ -27,7 +27,7 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
                 try {
                     int type = std::stoi(args[1]);
                     return std::make_unique<ConnectCommand>(static_cast<EntityType>(type));
-                } catch (std::exception e) {
+                } catch (std::exception &e) {
                     std::cerr << "[CF Error] CONN - Invalid type: " << e.what() << "\n";
                     return nullptr;
                 }
@@ -54,6 +54,10 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
                 return std::make_unique<LoginResponseCommand>(resp, args[2]);
             }
             break;
+        case CommandType::LOGOUT_REQ:
+            if (args.size() == 2) {
+                return std::make_unique<LogoutRequestCommand>(args[1]);
+            }
         case CommandType::REQ_NOTIF_CLIENT:
             if (args.size() == 2) {
                 return std::make_unique<RequestNotificationClientCommand>(args[1]);

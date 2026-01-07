@@ -49,10 +49,14 @@ set(COMMAND_LAYER
         src/Command_Layer/Code_Login/ValidateCodeServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseClientCommand.hpp
-        src/Command_Layer/ServerContext.hpp
+        src/Command_Layer/Context.hpp
         src/Command_Layer/System_Commands/ConnectCommand.cpp
         src/Command_Layer/Base/EntityType.hpp
         src/Command_Layer/Credential_Login/LoginRequestCommand.cpp
+        src/Command_Layer/Credential_Login/LoginResponseCommand.cpp
+        src/Command_Layer/System_Commands/ErrorCommand.cpp
+        src/Command_Layer/Credential_Login/LogoutRequestCommand.cpp
+        src/Command_Layer/Credential_Login/LogoutRequestCommand.hpp
 )
 
 add_executable(AuthServer
@@ -62,6 +66,12 @@ add_executable(AuthServer
         src/Session_Manager/SessionManager.hpp
         src/Auth_Layer/AuthManager.hpp
         src/Auth_Layer/AuthManager.cpp
+        src/Session_Manager/SessionManager.cpp
+        src/TOTP_Layer/TOTPGenerator.cpp
+        src/TOTP_Layer/TOTPGenerator.hpp
+        src/TOTP_Layer/TOTPManager.cpp
+        src/TOTP_Layer/TOTPManager.hpp
+        src/Connection_Layer/ServerConnectionHandler.cpp
 )
 
 target_compile_definitions(AuthServer PRIVATE SERVER_SIDE)
@@ -90,6 +100,8 @@ add_executable(DummyServer
         src/Dummy_Server/DummyServer.cpp
         src/Connection_Layer/ServerConnectionHandler.hpp
         src/Session_Manager/SessionManager.hpp
+        src/Session_Manager/SessionManager.cpp
+        src/Connection_Layer/ServerConnectionHandler.cpp
 )
 
 target_include_directories(DummyServer PUBLIC src)

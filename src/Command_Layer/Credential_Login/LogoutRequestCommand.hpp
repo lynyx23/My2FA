@@ -1,11 +1,11 @@
-#ifndef MY2FA_LOGINRESPONSECOMMAND_HPP
-#define MY2FA_LOGINRESPONSECOMMAND_HPP
+#ifndef MY2FA_LOGOUTREQUESTCOMMAND_HPP
+#define MY2FA_LOGOUTREQUESTCOMMAND_HPP
 
 #include "Command_Layer/Base/Command.hpp"
 
-class LoginResponseCommand : public Command {
+class LogoutRequestCommand : public Command {
 public:
-    LoginResponseCommand(bool resp, std::string uuid);
+    explicit LogoutRequestCommand(std::string uuid);
 
     [[nodiscard]] std::string serialize() const override;
 
@@ -13,13 +13,10 @@ public:
 
     [[nodiscard]] CommandType getType() const override;
 
-    [[nodiscard]] bool getResponse() const;
-
     [[nodiscard]] std::string getUuid() const;
 
 private:
-    const bool m_response;
     std::string m_uuid;
 };
 
-#endif //MY2FA_LOGINRESPONSECOMMAND_HPP
+#endif // MY2FA_LOGOUTREQUESTCOMMAND_HPP

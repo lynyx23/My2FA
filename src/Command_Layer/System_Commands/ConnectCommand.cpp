@@ -3,10 +3,10 @@
 
 #ifdef SERVER_SIDE
 #include "Session_Manager/SessionManager.hpp"
-#include "Command_Layer/ServerContext.hpp"
+#include "Command_Layer/Context.hpp"
 #endif
 
-ConnectCommand::ConnectCommand(EntityType type): m_connection_type(std::move(type)) {}
+ConnectCommand::ConnectCommand(const EntityType type): m_connection_type(type) {}
 
 std::string ConnectCommand::serialize() const {
     std::ostringstream ss;
@@ -15,9 +15,9 @@ std::string ConnectCommand::serialize() const {
     return ss.str();
 }
 
-void ConnectCommand::execute(ServerContext &ctx, int client_fd) {
+void ConnectCommand::execute(Context &ctx, int fd) {
 #ifdef SERVER_SIDE
-    ctx.session_manager.m_handleHandshake(client_fd, m_connection_type);
+    ctx.session_manager.handleHandshake(fd, m_connection_type);
 #endif
 }
 

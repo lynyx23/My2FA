@@ -1,11 +1,15 @@
 #include <iostream>
 #include <sstream>
 #include "LoginRequestCommand.hpp"
+#include "Command_Layer/Context.hpp"
 
 #ifdef SERVER_SIDE
-#include "Command_Layer/ServerContext.hpp"
+#include <string>
 #include "Auth_Layer/AuthManager.hpp"
 #include "Session_Manager/SessionManager.hpp"
+#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include "Command_Layer/Credential_Login/LoginResponseCommand.hpp"
+#include "Command_Layer/System_Commands/ErrorCommand.hpp"
 #endif
 
 LoginRequestCommand::LoginRequestCommand(std::string user, std::string pass)
@@ -17,18 +21,38 @@ std::string LoginRequestCommand::serialize() const {
     return ss.str();
 }
 
-void LoginRequestCommand::execute(ServerContext &ctx, const int client_fd) {
+void LoginRequestCommand::execute(Context &ctx, const int fd) {
 #ifdef SERVER_SIDE
+    // ctx.session_manager.checkLoggedIn(ctx.auth_manager->getUUID(m_username)) ||
+    if (ctx.session_manager.getIsLogged(fd)) {
+        ctx.server_handler.sendCommand(fd,
+            std::make_unique<ErrorCommand>(300,"User already logged in!"));
+        std::cerr << "[AM Error] User already logged in!\n";
+        return;
+    }
+    bool resp;
+    std::string uuid;
     if (ctx.auth_manager->loginUser(m_username,m_password)) {
-        ctx.session_manager.setIsLogged(client_fd, true);
+        ctx.session_manager.setIsLogged(fd, true);
         std::cout << "[AM Log] Login successful: "
-            << m_username <<" (fd = " << client_fd << ")\n";
+            << m_username <<" (fd = " << fd << ")\n";
+        resp = true;
+        uuid = ctx.auth_manager->getUUID(m_username);
+        ctx.session_manager.setUUID(fd, uuid);
+        //ctx.session_manager.setSecret(fd, ctx.auth_manager->getSecret(uuid));
     }
     else {
-        ctx.session_manager.setIsLogged(client_fd, false);
-        std::cout << "[AM Log] Login failed: "
-            << m_username <<" (fd = " << client_fd << ")\n";
+        ctx.session_manager.setIsLogged(fd, false);
+        std::cerr << "[AM Error] Login failed: "
+            << m_username <<" (fd = " << fd << ")\n";
+        resp = false;
+        uuid = "0";
+        ctx.server_handler.sendCommand(fd,
+            std::make_unique<ErrorCommand>(301,"Invalid username or password!"));
     }
+    ctx.server_handler.sendCommand(fd,
+        std::make_unique<LoginResponseCommand>(resp, uuid));
+    std::cout << "[Server] Sending Login Response to Client: " << fd << "\n";
 #endif
 }
 

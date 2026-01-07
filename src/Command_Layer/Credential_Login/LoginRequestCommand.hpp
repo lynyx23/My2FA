@@ -8,7 +8,7 @@ class LoginRequestCommand : public Command {
 public:
     LoginRequestCommand(std::string user, std::string pass);
     [[nodiscard]] std::string serialize() const override;
-    void execute(ServerContext &ctx, int client_fd) override;
+    void execute(Context &ctx, int fd) override;
     [[nodiscard]] CommandType getType() const override;
     [[nodiscard]] std::string getUsername() const;
     [[nodiscard]] std::string getPassword() const;

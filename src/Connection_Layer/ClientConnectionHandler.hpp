@@ -16,7 +16,7 @@
 
 class ClientConnectionHandler {
 public:
-    using CommandCallback = std::function<void(std::unique_ptr<Command>)>;
+    using CommandCallback = std::function<void(int fd, std::unique_ptr<Command>)>;
 
     ClientConnectionHandler(std::string ip, const int port)
         : m_socket(-1), m_port(port), m_ip(std::move(ip)) {
@@ -119,7 +119,7 @@ private:
             } catch (...) {
                 command = nullptr;
             }
-            if (m_callback && command) m_callback(std::move(command));
+            if (m_callback && command) m_callback(m_socket, std::move(command));
         }
     }
 

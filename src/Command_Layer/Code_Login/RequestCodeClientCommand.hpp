@@ -17,7 +17,7 @@ public:
         return ss.str();
     }
 
-    void execute(ServerContext &ctx, int client_fd) override {};
+    void execute(Context &ctx, int client_fd) override {};
 
     [[nodiscard]] CommandType getType() const override {
         return CommandType::REQ_CODE_CLIENT;

@@ -25,7 +25,8 @@ void AuthManager::init() {
                   "username TEXT UNIQUE NOT NULL,"
                   "pass_hash TEXT NOT NULL,"
                   "salt TEXT NOT NULL,"
-                  "uuid TEXT UNIQUE)");
+                  "uuid TEXT UNIQUE,"
+                  "totp_secret TEXT NOT NULL DEFAULT '')");
     } catch (std::exception& e) {
         std::cerr << "[AM Error] Init error: " << e.what() << "\n";
     }
@@ -70,21 +71,53 @@ std::string AuthManager::m_generateSalt() {
     return ss.str();
 }
 
+std::string AuthManager::getUUID(const std::string &username) const {
+    SQLite::Statement query(m_db, "SELECT uuid FROM users WHERE username = ?");
+    query.bind(1, username);
+    try {
+        query.executeStep();
+    } catch (std::exception& e) {
+        std::cerr << "[AM Error] UUID lookup failed: " << e.what() << "\n";
+    }
+    return query.getColumn(0);
+}
 
+std::string AuthManager::getSecret(const std::string &uuid) const {
+    SQLite::Statement query(m_db, "SELECT totp_secret FROM users WHERE uuid = ?");
+    query.bind(1, uuid);
+    try {
+        query.executeStep();
+    } catch (std::exception& e) {
+        std::cerr << "[AM Error] Secret lookup failed: " << e.what() << "\n";
+    }
+    return query.getColumn(0);
+}
+
+void AuthManager::setSecret(const std::string &uuid, const std::string &secret) {
+    SQLite::Statement query(m_db, "UPDATE users SET totp_secret = ? WHERE uuid = ?");
+    query.bind(1, secret);
+    query.bind(2, uuid);
+    try {
+        query.exec();
+    } catch (std::exception& e) {
+        std::cerr << "[AM Error] Secret update failed: " << e.what() << "\n";
+    }
+}
+
+//TODO username and password regex checking
 bool AuthManager::loginUser(const std::string& username, const std::string& password) const {
     SQLite::Statement query(m_db, "SELECT username, pass_hash, salt, uuid FROM users WHERE username = ?");
     query.bind(1, username);
 
-    if (!query.executeStep()) {
-        return false;
+    if (query.executeStep()) {
+        const std::string hash = query.getColumn(1);
+        const std::string salt = query.getColumn(2);
+        const std::string uuid = query.getColumn(3);
+
+        if (m_hashPassword(password, salt) == hash) return true;
     }
 
-    const std::string hash = query.getColumn(1);
-    const std::string salt = query.getColumn(2);
-    const std::string uuid = query.getColumn(3);
-
-    if (m_hashPassword(password, salt) != hash) return false;
-    return true;
+    return false;
 }
 
 std::string AuthManager::m_generateUUID(const std::string& username) {
@@ -152,7 +185,13 @@ void AuthManager::show() const {
     SQLite::Statement query(m_db, "SELECT * FROM users");
     while (query.executeStep()) {
         std::cout << "username = " << query.getColumn(1) << "\n" << "pass_hash = " << query.getColumn(2) << "\n"
-            << "salt = " << query.getColumn(3) << "\n" << "uuid = " << query.getColumn(4) << "\n";
+            << "salt = " << query.getColumn(3) << "\n" << "uuid = " << query.getColumn(4) << "\n"
+            << "totp_secret = " << query.getColumn(5) << "\n";
     }
+}
+
+void AuthManager::placeholder() const {
+    SQLite::Statement query(m_db, "ALTER TABLE users ADD COLUMN totp_secret TEXT NOT NULL DEFAULT ''");
+    query.exec();
 }
 

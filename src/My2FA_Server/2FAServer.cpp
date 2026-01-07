@@ -1,38 +1,30 @@
 #include <sstream>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/time.h>
 
 #include "Command_Layer/CommandFactory.hpp"
-#include "Command_Layer/System_Commands/SystemCommands.hpp"
-#include "Command_Layer/Credential_Login/CredentialLoginCommands.hpp"
 #include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
 #include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
 #include "Connection_Layer/ServerConnectionHandler.hpp"
 #include "Session_Manager/SessionManager.hpp"
 #include "Auth_Layer/AuthManager.hpp"
-#include "Command_Layer/ServerContext.hpp"
+#include "Command_Layer/Context.hpp"
 
 #define PORT 27701 // Auth port
 #define MAX_CLIENTS 30
 #define BUFFER_SIZE 1024
 
-void handleCommand(const std::unique_ptr<Command> &command, const int client_fd, ServerContext &ctx) {
+void handleCommand(const std::unique_ptr<Command> &command, const int client_fd, Context &ctx) {
     if (!command) {
         std::cerr << "[AS Error] Received invalid command from client " << client_fd << "\n";
         return;
     }
-
     try {
         command->execute(ctx, client_fd);
     } catch (const std::exception &e) {
-        std::cerr << "[AS Error] Command execution failed: " << e.what() << "\n";
+        std::cerr << "[AS Error] Command " << "(" << command->getType() << ") execution failed: " << e.what() << "\n";
     }
-        // case CommandType::ERR: {
-        //     const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
-        //     ss << "Received command ERR: Type = " << cmd->getCode()
-        //             << " , Msg = " << cmd->getMessage();
-        //     break;
-        // }
         // case CommandType::REQ_NOTIF_SERVER: {
         //     const auto *cmd = dynamic_cast<const RequestNotificationServerCommand *>(command.get());
         //     ss << "Received command REQ_NOTIF_SERVER: UUID = " << cmd->getUuid()
@@ -144,11 +136,16 @@ bool checkConsoleInput() {
 }
 
 int main() {
+    signal(SIGPIPE, SIG_IGN); // avoid crashes from sending
+
     auto auth_manager = std::make_unique<AuthManager>("as");
+
     SessionManager session_manager;
-    ServerContext ctx{session_manager,auth_manager.get()}; //maybe move to commandCallbacka
 
     ServerConnectionHandler handler(PORT);
+
+    Context ctx{session_manager, auth_manager.get(), handler};
+
     handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
         std::cout << "[AS Log] Handling command from Client: " << client_fd << " ("
             << ctx.session_manager.getEntityType(client_fd) << ")\n";
@@ -163,7 +160,6 @@ int main() {
         std::cout << "[AS Log] Client disconnected: " << client_fd << "\n";
     });
 
-
     bool run = true;
     while (run) {
         handler.update();
@@ -171,8 +167,10 @@ int main() {
         if (checkConsoleInput()) {
             std::string input;
             std::getline(std::cin, input);
-            if (split(input)[0] == "exit") run = false;
-            handleUserInput(handler, input, session_manager);
+            if (!input.empty()) {
+                if (split(input)[0] == "exit") run = false;
+                handleUserInput(handler, input, session_manager);
+            }
         }
     }
 }

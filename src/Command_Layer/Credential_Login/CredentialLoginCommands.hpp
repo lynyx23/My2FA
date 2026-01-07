@@ -3,5 +3,6 @@
 
 #include "LoginRequestCommand.hpp"
 #include "LoginResponseCommand.hpp"
+#include "LogoutRequestCommand.hpp"
 
 #endif //MY2FA_CREDENTIALLOGINCOMMANDS_HPP

@@ -1,39 +1,20 @@
 #ifndef MY2FA_ERRCOMMAND_HPP
 #define MY2FA_ERRCOMMAND_HPP
 
-#include <sstream>
-#include <utility>
-#include "../Base/Command.hpp"
+#include "Command_Layer/Base/Command.hpp"
 
 class ErrorCommand : public Command {
-private:
-    const int code;
-    std::string msg;
-
 public:
-    ErrorCommand(const int errCode, std::string message)
-        : code(errCode), msg(std::move(message)) {
-    }
+    ErrorCommand(int errCode, std::string message);
+    [[nodiscard]] std::string serialize() const override;
+    void execute(Context &ctx, int fd) override;
+    [[nodiscard]] CommandType getType() const override;
+    [[nodiscard]] int getCode() const;
+    [[nodiscard]] std::string getMessage() const;
 
-    [[nodiscard]] std::string serialize() const override {
-        std::ostringstream ss;
-        ss << static_cast<int>(CommandType::ERR) << DELIMITER << code << DELIMITER << msg;
-        return ss.str();
-    }
-
-    void execute(ServerContext &ctx, int client_fd) override {};
-
-    [[nodiscard]] CommandType getType() const override {
-        return CommandType::ERR;
-    }
-
-    [[nodiscard]] int getCode() const {
-        return code;
-    }
-
-    [[nodiscard]] std::string getMessage() const {
-        return msg;
-    }
+private:
+    const int m_code;
+    std::string m_msg;
 };
 
-#endif //MY2FA_ERRCOMMAND_HPP
+#endif // MY2FA_ERRCOMMAND_HPP
