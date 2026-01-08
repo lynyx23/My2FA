@@ -152,14 +152,15 @@ std::string AuthManager::m_generateUUID(const std::string& username) {
     return ss.str();
 }
 
-void AuthManager::testAddUser(const std::string &username, const std::string &password) {
-    SQLite::Statement query(m_db, "INSERT INTO users (username, pass_hash, salt, uuid) VALUES (?, ?, ?, ?)");
+void AuthManager::testAddUser(const std::string &username, const std::string &password, const std::string &secret) {
+    SQLite::Statement query(m_db, "INSERT INTO users (username, pass_hash, salt, uuid, totp_secret) VALUES (?, ?, ?, ?, ?)");
 
     query.bind(1, username);
     const std::string salt = m_generateSalt();
     query.bind(2, m_hashPassword(password, salt));
     query.bind(3, salt);
     query.bind(4, m_generateUUID(username));
+    query.bind(5, secret);
 
     std::cout << "[AM Log] User added: " << username << "\n";
     try {
@@ -191,7 +192,9 @@ void AuthManager::show() const {
 }
 
 void AuthManager::placeholder() const {
-    SQLite::Statement query(m_db, "ALTER TABLE users ADD COLUMN totp_secret TEXT NOT NULL DEFAULT ''");
+    SQLite::Statement query(m_db, "UPDATE users SET totp_secret = ? WHERE username = ?");
+    query.bind(1, "HXDMMJECJJWSRB3HWIZR4IFUGFTMXBOZ");
+    query.bind(2, "admin");
     query.exec();
 }
 

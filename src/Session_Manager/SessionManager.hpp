@@ -33,6 +33,7 @@ struct Session {
     std::string secret;
     std::atomic<bool> isLogged;
     std::atomic<bool> isValid;
+    std::atomic<bool> isInCodeState;
 };
 
 class SessionManager {
@@ -50,12 +51,14 @@ public:
     void setIsLogged(int id, bool isLogged);
     void setUUID(int id, const std::string &uuid);
     void setSecret(int id, const std::string &secret);
+    void setIsInCodeState(int id, bool isInCodeState);
 
     int getID(int id) const;
+    [[nodiscard]] std::shared_ptr<Session> getSession(int id) const;
     [[nodiscard]] std::string getUUID(int id) const;
     [[nodiscard]] EntityType getEntityType(int id) const;
     bool getIsLogged(int id) const;
-    [[nodiscard]] std::vector<std::shared_ptr<Session>> getAllSessions() const;
+    [[nodiscard]] std::vector<std::shared_ptr<Session>> getActiveSessions() const;
 
 private:
     std::map<int, std::shared_ptr<Session>> m_sessions;

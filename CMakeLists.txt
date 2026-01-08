@@ -57,6 +57,8 @@ set(COMMAND_LAYER
         src/Command_Layer/System_Commands/ErrorCommand.cpp
         src/Command_Layer/Credential_Login/LogoutRequestCommand.cpp
         src/Command_Layer/Credential_Login/LogoutRequestCommand.hpp
+        src/Command_Layer/Code_Login/CodeResponseCommand.cpp
+        src/Command_Layer/Code_Login/RequestCodeClientCommand.cpp
 )
 
 add_executable(AuthServer

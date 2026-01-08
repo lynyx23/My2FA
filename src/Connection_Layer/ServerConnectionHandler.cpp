@@ -94,6 +94,7 @@ void ServerConnectionHandler::sendCommand(const int client_sd, const std::unique
     std::lock_guard<std::mutex> lock(m_mutex);
     if (fcntl(client_sd, F_GETFD) != -1) {
         send(client_sd, data.c_str(), data.length(), 0);
+        std::cout << "[SCH Log] Sent command to client " << client_sd << ": " << data << "\n";
     }
 }
 

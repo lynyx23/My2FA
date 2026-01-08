@@ -91,8 +91,8 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
             }
             break;
         case CommandType::CODE_RESP:
-            if (args.size() == 2) {
-                return std::make_unique<CodeResponseCommand>(stoi(args[1]));
+            if (args.size() == 3) {
+                return std::make_unique<CodeResponseCommand>(args[1], stoi(args[2]));
             }
             break;
         case CommandType::VALIDATE_CODE_CLIENT:

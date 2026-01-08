@@ -1,3 +1,6 @@
+#include <iomanip>
+#include <memory>
+#include <thread>
 #include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
 #include "Command_Layer/CommandFactory.hpp"
 #include "Command_Layer/Context.hpp"
@@ -9,23 +12,72 @@
 
 #define PORT 27701
 
+bool checkConsoleInput() {
+    fd_set read_set;
+    FD_ZERO(&read_set);
+    FD_SET(STDIN_FILENO, &read_set);
+    timeval timeout{0, 0};
+    return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
+}
+
+void printCodeState(const uint32_t remainingSeconds, const std::string &code) {
+    constexpr uint8_t width = 30;
+
+    std::cout << "\rCode: [\033[1;92m" << code << "\033[0m] [";
+    for (uint8_t i = 0; i < width; i++) {
+        if (i < remainingSeconds)
+            std::cout << "\033[1;92m■\033[0m";
+        else
+            std::cout << " ";
+    }
+    std::cout << "] " << remainingSeconds << "s" << std::flush;
+}
+
+
+void runCodeState(Context &ctx, ClientConnectionHandler &handler) {
+    std::cout << "\n[Live TOTP View - Press ENTER to return]\n" << std::flush;
+
+    ctx.codeState = true;
+    ctx.code = "...";
+
+    while (ctx.codeState && handler.isRunning()) {
+        if (checkConsoleInput()) {
+            std::string input;
+            std::getline(std::cin, input);
+            ctx.codeState = false;
+            break;
+        }
+
+        handler.update();
+
+        const auto remaining = static_cast<uint32_t>(std::difftime(ctx.timeExpiration, std::time(nullptr)));
+        printCodeState(remaining, ctx.code);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    std::cout << "\r\033[A\033[2K[Exiting TOTP view]\n" << std::flush;
+}
+
 void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::string &input) {
     auto args = split(input);
-    if (args.empty()) return;
+    if (args.empty())
+        return;
 
     std::unique_ptr<Command> command = nullptr;
     // note: switch won't work with strings
     if (args[0] == "help") {
         std::cout << "  help                   : Show this menu\n"
-                << "  conn                   : Handshake (e.g. conn)\n"
-                << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
-                << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
-                << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
-                << "  reconnect              : Reconnect to AS\n"
-                << "  exit                   : Quit\n";
+                  << "  conn                   : Handshake (e.g. conn)\n"
+                  << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
+                  << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
+                  << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
+                  << "  reconnect              : Reconnect to AS\n"
+                  << "  exit                   : Quit\n";
         return;
-    } else if (args[0] == "reconnect") return;
-    else if (args[0] == "conn") command = std::make_unique<ConnectCommand>(EntityType::AUTH_CLIENT);
+    } else if (args[0] == "reconnect" || args[0] == "exit")
+        return;
+    else if (args[0] == "conn")
+        command = std::make_unique<ConnectCommand>(EntityType::AUTH_CLIENT);
     else if (args[0] == "accept") {
         if (args.size() < 2) {
             std::cerr << "[AC Error] Incorrect format: accept <appid>\n ";
@@ -45,6 +97,11 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
         }
         try {
             command = std::make_unique<RequestCodeClientCommand>(args[1], std::stoi(args[2]));
+            if (handler && handler->isRunning()) {
+                handler->sendCommand(command);
+                runCodeState(ctx, *handler);
+            }
+            command = nullptr;
         } catch (...) {
             std::cerr << "[AC Error] Code must be an integer.\n";
             return;
@@ -67,67 +124,47 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
         if (handler && handler->isRunning()) {
             handler->sendCommand(command);
             std::cout << "[AC -> AS] Sent: " << data << "\n";
-        } else std::cerr << "[AC Error] Not connected to DS.\n";
+        } else
+            std::cerr << "[AC Error] Not connected to DS.\n";
     }
 }
 
-void handleCommand(Context &ctx, ClientConnectionHandler *handler,
-    const std::unique_ptr<Command> &command, const int fd) {
+void handleCommand(Context &ctx, ClientConnectionHandler *handler, const std::unique_ptr<Command> &command,
+                   const int fd) {
     if (!command) {
         std::cerr << "[AC Error] Received invalid command from server.\n";
         return;
     }
+
+    if (!ctx.codeState)
+        std::cout << "[AC Log] Handling command ...\n";
+
     try {
         command->execute(ctx, fd);
     } catch (const std::exception &e) {
         std::cerr << "[AC Error] Command execution failed: " << e.what() << "\n";
     }
-    // std::ostringstream ss;
-    // switch (command->getType()) {
-    //     case CommandType::ERR: {
-    //         const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
-    //         ss << "Received command ERR: Type = " << cmd->getCode()
-    //                 << " , Msg = " << cmd->getMessage();
-    //         break;
-    //     }
-    //     case CommandType::SEND_NOTIF: {
-    //         const auto *cmd = dynamic_cast<const SendNotificationCommand *>(command.get());
-    //         ss << "Received command SEND_NOTIF: AppID = " << cmd->getAppid();
-    //         break;
-    //     }
-    //     default:
-    //         ss << "Invalid or Unexpected command type: "
-    //                 << static_cast<int>(command->getType());
-    // }
-    // return ss.str();
-
-}
-
-bool checkConsoleInput() {
-    fd_set read_set;
-    FD_ZERO(&read_set);
-    FD_SET(STDIN_FILENO, &read_set);
-    timeval timeout{0, 0};
-    return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
 }
 
 int main() {
     bool is_connected;
 
-    Context ctx{false, "0"};
+    Context ctx{false, "0", false};
 
     std::unique_ptr<ClientConnectionHandler> handler = nullptr;
-    try {
-        handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
-        handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
-            std::cout << "[AC Log] Handling command ...\n";
-            handleCommand(ctx, handler.get(), command, fd);
-        });
-        is_connected = true;
-    } catch (...) {
-        is_connected = false;
-        std::cerr << "[AC Error] Connection to AS Failed." << "\n";
-    }
+    auto setupHandler = [&]() {
+        try {
+            handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
+            handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
+                handleCommand(ctx, handler.get(), command, fd);
+            });
+            is_connected = true;
+        } catch (...) {
+            is_connected = false;
+            std::cerr << "[AC Error] Connection to AS Failed." << "\n";
+        }
+    };
+    setupHandler();
 
     bool run = true;
     while (run) {
@@ -135,7 +172,8 @@ int main() {
             if (!handler->isRunning()) {
                 std::cerr << "[AC Error] AS disconnected!\n";
                 is_connected = false;
-            } else handler->update();
+            } else
+                handler->update();
         }
 
         if (checkConsoleInput()) {
@@ -146,17 +184,7 @@ int main() {
                     run = false;
                 }
                 if (split(input)[0] == "reconnect") {
-                    try {
-                        handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
-                        handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
-                            std::cout << "[AC Log] Handling command ...\n";
-                            handleCommand(ctx, handler.get(), command, fd);
-                        });
-                        is_connected = true;
-                    } catch (...) {
-                        is_connected = false;
-                        std::cerr << "[AC Error] Connection to AS Failed." << "\n";
-                    }
+                    setupHandler();
                 }
                 handleUserInput(ctx, handler.get(), input);
             }

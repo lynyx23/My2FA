@@ -11,7 +11,7 @@ public:
     [[nodiscard]] std::string getUUID(const std::string& username) const;
     [[nodiscard]] std::string getSecret(const std::string& uuid) const;
     void setSecret(const std::string& uuid, const std::string& secret);
-    void testAddUser(const std::string& username, const std::string& password);
+    void testAddUser(const std::string &username, const std::string &password, const std::string &secret);
     void testRemoveUser(const std::string& username);
     void show() const;
     void placeholder() const;

@@ -23,7 +23,6 @@ std::string LoginRequestCommand::serialize() const {
 
 void LoginRequestCommand::execute(Context &ctx, const int fd) {
 #ifdef SERVER_SIDE
-    // ctx.session_manager.checkLoggedIn(ctx.auth_manager->getUUID(m_username)) ||
     if (ctx.session_manager.getIsLogged(fd)) {
         ctx.server_handler.sendCommand(fd,
             std::make_unique<ErrorCommand>(300,"User already logged in!"));
@@ -39,7 +38,7 @@ void LoginRequestCommand::execute(Context &ctx, const int fd) {
         resp = true;
         uuid = ctx.auth_manager->getUUID(m_username);
         ctx.session_manager.setUUID(fd, uuid);
-        //ctx.session_manager.setSecret(fd, ctx.auth_manager->getSecret(uuid));
+        ctx.session_manager.setSecret(fd, ctx.auth_manager->getSecret(uuid));
     }
     else {
         ctx.session_manager.setIsLogged(fd, false);

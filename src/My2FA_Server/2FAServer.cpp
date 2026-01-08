@@ -10,10 +10,7 @@
 #include "Session_Manager/SessionManager.hpp"
 #include "Auth_Layer/AuthManager.hpp"
 #include "Command_Layer/Context.hpp"
-
-#define PORT 27701 // Auth port
-#define MAX_CLIENTS 30
-#define BUFFER_SIZE 1024
+#include "TOTP_Layer/TOTPManager.hpp"
 
 void handleCommand(const std::unique_ptr<Command> &command, const int client_fd, Context &ctx) {
     if (!command) {
@@ -78,12 +75,12 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input,
             return;
         }
         command = std::make_unique<SendNotificationCommand>(std::stoi(args[1]));
-    } else if (args[0] == "code_resp") {
-        if (args.size() < 2) {
-            std::cerr << "[AS Error] Usage: code_resp <code>\n";
-            return;
-        }
-        command = std::make_unique<CodeResponseCommand>(std::stoi(args[1]));
+    // } else if (args[0] == "code_resp") {
+    //     if (args.size() < 2) {
+    //         std::cerr << "[AS Error] Usage: code_resp <code>\n";
+    //         return;
+    //     }
+    //     command = std::make_unique<CodeResponseCommand>(std::stoi(args[1]));
     } else if (args[0] == "notif_resp_server") {
         if (args.size() < 3) {
             std::cerr << "[AS Error] Usage: notif_resp_server <1/0> <uuid>\n";
@@ -137,14 +134,17 @@ bool checkConsoleInput() {
 
 int main() {
     signal(SIGPIPE, SIG_IGN); // avoid crashes from sending
+    constexpr uint32_t PORT = 27701; // Auth port
 
-    auto auth_manager = std::make_unique<AuthManager>("as");
-
+    AuthManager auth_manager("as");
     SessionManager session_manager;
-
     ServerConnectionHandler handler(PORT);
 
-    Context ctx{session_manager, auth_manager.get(), handler};
+    Context ctx{session_manager, &auth_manager, handler, nullptr};
+
+    TOTPManager totp_manager(ctx);
+    ctx.totp_manager = &totp_manager;
+    totp_manager.start();
 
     handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
         std::cout << "[AS Log] Handling command from Client: " << client_fd << " ("
