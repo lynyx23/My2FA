@@ -10,16 +10,16 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-#include "../Command_Layer/Base/Command.hpp"
-#include "../Command_Layer/CommandFactory.hpp"
+#include "Command_Layer/Base/Command.hpp"
+#include "Command_Layer/CommandFactory.hpp"
+#include "Command_Layer/System_Commands/ConnectCommand.hpp"
 
 class ClientConnectionHandler {
 public:
     using CommandCallback = std::function<void(int fd, std::unique_ptr<Command>)>;
 
-    ClientConnectionHandler(std::string ip, const int port)
-        : m_socket(-1), m_port(port), m_ip(std::move(ip)) {
+    ClientConnectionHandler(const EntityType type, std::string ip, const int port, std::string app_id = "")
+        : m_socket(-1), m_port(port), m_ip(std::move(ip)), m_type(type), m_app_id(std::move(app_id)) {
         m_setupSocket();
     }
 
@@ -102,6 +102,13 @@ private:
         }
 
         std::cout << "Connected to server!\n";
+
+        if (m_app_id.empty()) {
+            sendCommand(std::make_unique<ConnectCommand>(m_type));
+        }
+        else {
+            sendCommand(std::make_unique<ConnectCommand>(m_type, m_app_id));
+        }
     }
 
     void m_handleData() {
@@ -127,6 +134,8 @@ private:
     int m_port;
     std::string m_ip;
     CommandCallback m_callback;
+    EntityType m_type;
+    std::string m_app_id;
 };
 
 #endif //MY2FA_CLIENTCONNECTIONHANDLER_HPP

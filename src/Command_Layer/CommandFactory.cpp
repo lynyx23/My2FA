@@ -1,16 +1,19 @@
-#include <vector>
-#include <string>
+#include "CommandFactory.hpp"
 #include <iostream>
+#include <string>
+#include <vector>
 #include "Base/Command.hpp"
 #include "Base/EntityType.hpp"
-#include "CommandFactory.hpp"
-#include "System_Commands/SystemCommands.hpp"
+#include "Code_Login/CodeLoginCommands.hpp"
+#include "Code_Login/ExitSCSCommand.hpp"
 #include "Credential_Login/CredentialLoginCommands.hpp"
 #include "Notification_Login/NotificationLoginCommands.hpp"
-#include "Code_Login/CodeLoginCommands.hpp"
+#include "System_Commands/GenericResponseCommand.hpp"
+#include "System_Commands/PairCommand.hpp"
+#include "System_Commands/SystemCommands.hpp"
 
 // Hleper function to split command string into command and argument tokens
-
+// TODO conn timeout kick?
 std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
     const std::vector<std::string> args = split(data);
     if (args.empty()) return nullptr;
@@ -32,6 +35,15 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
                     return nullptr;
                 }
             }
+            if (args.size() == 3) {
+                try {
+                    int type = std::stoi(args[1]);
+                    return std::make_unique<ConnectCommand>(static_cast<EntityType>(type), args[2]);
+                } catch (std::exception &e) {
+                    std::cerr << "[CF Error] CONN - Invalid type: " << e.what() << "\n";
+                    return nullptr;
+                }
+            }
             break;
         case CommandType::PING:
             if (args.size() == 1) {
@@ -43,21 +55,42 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
                 return std::make_unique<ErrorCommand>(stoi(args[1]), args[2]);
             }
             break;
-        case CommandType::LOGIN_REQ:
-            if (args.size() == 3) {
-                return std::make_unique<LoginRequestCommand>(args[1], args[2]);
+        case CommandType::PAIR:
+#ifdef D_SERVER
+            if (args.size() == 1) {
+                return std::make_unique<PairCommand>();
             }
-            break;
-        case CommandType::LOGIN_RESP:
-            if (args.size() == 3) {
-                bool resp = (args[1] == "1");
-                return std::make_unique<LoginResponseCommand>(resp, args[2]);
+#elif defined(A_SERVER)
+            if (args.size() == 2) {
+                return std::make_unique<PairCommand>(args[1]);
+            }
+#endif
+        case CommandType::CRED_REQ:
+            if (args.size() == 4) {
+                switch (const auto type = static_cast<CommandType>(stoi(args[1]))) {
+                    case CommandType::LOGIN_REQ:
+                    case CommandType::REGISTER_REQ:
+                        return std::make_unique<CredentialRequestCommand>(type, args[2], args[3]);
+                    default:
+                        std::cerr << "[CF Error] Invalid credential request type: " << type << "\n";
+                }
+            }
+        case CommandType::RESP:
+            if (args.size() == 5) {
+                bool resp = (args[2] == "1");
+                switch (const auto type = static_cast<CommandType>(stoi(args[1]))) {
+                    case CommandType::LOGIN_RESP:
+                    case CommandType::REGISTER_RESP:
+                    case CommandType::PAIR_RESP:
+                    case CommandType::CODE_CHK_RESP:
+                        return std::make_unique<GenericResponseCommand>(type, resp, args[3], args[4]);
+                    default:
+                        std::cerr << "[CF Error] Invalid response type: " << type << "\n";
+                }
             }
             break;
         case CommandType::LOGOUT_REQ:
-            if (args.size() == 2) {
-                return std::make_unique<LogoutRequestCommand>(args[1]);
-            }
+                return std::make_unique<LogoutRequestCommand>();
         case CommandType::REQ_NOTIF_CLIENT:
             if (args.size() == 2) {
                 return std::make_unique<RequestNotificationClientCommand>(args[1]);
@@ -86,37 +119,33 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
             }
             break;
         case CommandType::REQ_CODE_CLIENT:
-            if (args.size() == 3) {
-                return std::make_unique<RequestCodeClientCommand>(args[1], stoi(args[2]));
+            if (args.size() == 2) {
+                return std::make_unique<RequestCodeClientCommand>(args[1]);
             }
             break;
         case CommandType::CODE_RESP:
             if (args.size() == 3) {
-                return std::make_unique<CodeResponseCommand>(args[1], stoi(args[2]));
+                return std::make_unique<CodeResponseCommand>(stoi(args[1]), args[2]);
             }
             break;
         case CommandType::VALIDATE_CODE_CLIENT:
-            if (args.size() == 3) {
-                return std::make_unique<ValidateCodeClientCommand>(stoi(args[1]), args[2]);
+            if (args.size() == 2) {
+                return std::make_unique<ValidateCodeClientCommand>(args[1]);
             }
             break;
         case CommandType::VALIDATE_CODE_SERVER:
             if (args.size() == 4) {
-                return std::make_unique<ValidateCodeServerCommand>(stoi(args[1]), args[2], stoi(args[3]));
+                return std::make_unique<ValidateCodeServerCommand>(args[1], args[2], args[3]);
             }
             break;
         case CommandType::VALIDATE_RESP_SERVER:
             if (args.size() == 4) {
                 bool resp = (args[1] == "1");
-                return std::make_unique<ValidateResponseServerCommand>(resp, args[2], stoi(args[3]));
+                return std::make_unique<ValidateResponseServerCommand>(resp, args[2], args[3]);
             }
             break;
-        case CommandType::VALIDATE_RESP_CLIENT:
-            if (args.size() == 3) {
-                bool resp = (args[1] == "1");
-                return std::make_unique<ValidateResponseClientCommand>(resp, args[2]);
-            }
-            break;
+        case CommandType::EXIT_SCS:
+            return std::make_unique<ExitSCSCommand>();
         default:
             return nullptr; // invalid command
     }

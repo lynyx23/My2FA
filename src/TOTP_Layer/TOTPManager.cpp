@@ -1,12 +1,14 @@
 #include "TOTPManager.hpp"
-#ifdef SERVER_SIDE
-#include "TOTPGenerator.hpp"
-#include "Command_Layer/Context.hpp"
-#include "Session_Manager/SessionManager.hpp"
+#ifdef A_SERVER
 #include <chrono>
 #include <iostream>
-#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include <sstream>
+#include "TOTPGenerator.hpp"
+
 #include "Command_Layer/Code_Login/CodeResponseCommand.hpp"
+#include "Command_Layer/Context.hpp"
+#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include "Session_Manager/SessionManager.hpp"
 
 TOTPManager::TOTPManager(Context &ctx)
     : m_ctx(ctx) {}
@@ -21,9 +23,8 @@ void TOTPManager::start() {
 
 bool TOTPManager::canReceiveCode(const std::shared_ptr<Session> &session) const {
     // checks to see if the session is dead, user not logged in, or not in showcode state
-    // or if the user doesn't have 2fa setup
-    return session && session->isValid && session->isLogged
-        && session->isInCodeState && !session->secret.empty();
+    return session && session->isValid && session->ac_data->isLogged
+        && session->ac_data->isInCodeState && !session->ac_data->secret_pairs.empty();
 }
 
 void TOTPManager::m_run(std::stop_token stop_token) {
@@ -42,24 +43,31 @@ void TOTPManager::m_run(std::stop_token stop_token) {
         for (auto sessions = m_ctx.session_manager.getActiveSessions();
             const auto &session : sessions) {
             if (!canReceiveCode(session)) continue;
-            sendCodeToClient(session);
+            sendCodesToClient(session);
         }
     }
 }
 
-    void TOTPManager::sendCodeToClient(const std::shared_ptr<Session> &session) {
-        if (!canReceiveCode(session)) {
-            std::cerr << "[TM Error] Invalid session ("<< session->id << ")!\n";
-            return;
-        }
-        std::string totp = TOTPGenerator::generateTOTP(session->secret);
-        uint32_t timeRemaining = TOTPGenerator::getRemainingSeconds();
-
-        // std::cout << "[DEBUG] Sending CodeResp to Client\n";
-        m_ctx.server_handler.sendCommand(session->id,
-            std::make_unique<CodeResponseCommand>(totp, timeRemaining));
-        // std::cout << "[DEBUG] Sent CodeResp!\n";
+void TOTPManager::sendCodesToClient(const std::shared_ptr<Session> &session) {
+    if (!canReceiveCode(session)) {
+        std::cerr << "[TM Error] Invalid session ("<< session->id << ")!\n";
+        return;
     }
+
+    constexpr char PAIR_DELIMITER = '|';
+    constexpr char CODE_DELIMITER = ':';
+
+    std::stringstream ss;
+    bool first = true;
+    for (const auto &[app_id, secret] : session->ac_data->secret_pairs) {
+        if (!first) ss << PAIR_DELIMITER;
+        first = false;
+        ss << app_id << CODE_DELIMITER << TOTPGenerator::generateTOTP(secret);
+    }
+    uint32_t timeRemaining = TOTPGenerator::getRemainingSeconds();
+    m_ctx.server_handler.sendCommand(session->id,
+            std::make_unique<CodeResponseCommand>(timeRemaining, ss.str()));
+}
 
 #endif
 

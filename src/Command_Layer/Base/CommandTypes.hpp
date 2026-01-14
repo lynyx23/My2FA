@@ -10,12 +10,15 @@ enum class CommandType : uint8_t {
     CONN = 1,
     PING = 2,
     ERR = 3,
-    UNKNOWN = 4,
+    RESP = 4,
+    PAIR = 5,
+    UNKNOWN = 6,
 
     // Credential Login Commands
-    LOGIN_REQ = 11,
-    LOGIN_RESP = 12,
+    CRED_REQ = 11,
+    LOGIN_REQ = 12,
     LOGOUT_REQ = 13,
+    REGISTER_REQ = 14,
 
     // Notification Login Commands
     REQ_NOTIF_CLIENT = 21,
@@ -30,7 +33,16 @@ enum class CommandType : uint8_t {
     VALIDATE_CODE_CLIENT = 33,
     VALIDATE_CODE_SERVER = 34,
     VALIDATE_RESP_SERVER = 35,
-    VALIDATE_RESP_CLIENT = 36
+    VALIDATE_RESP_CLIENT = 36,
+
+    // Response Types
+    LOGIN_RESP = 41,
+    REGISTER_RESP = 42,
+    PAIR_RESP = 43,
+    CODE_CHK_RESP = 44,
+
+    // Others
+    EXIT_SCS = 51
 };
 
 inline std::ostream& operator<<(std::ostream& os, const CommandType& type) {
@@ -38,8 +50,13 @@ inline std::ostream& operator<<(std::ostream& os, const CommandType& type) {
         case CommandType::CONN: return os << "CONN";
         case CommandType::PING: return os << "PING";
         case CommandType::ERR: return os << "ERR";
+        case CommandType::RESP: return os << "RESP";
+        case CommandType::CRED_REQ: return os << "CRED_REQ";
         case CommandType::LOGIN_REQ: return os << "LOGIN_REQ";
         case CommandType::LOGIN_RESP: return os << "LOGIN_RESP";
+        case CommandType::LOGOUT_REQ: return os << "LOGOUT_REQ";
+        case CommandType::REGISTER_REQ: return os << "REGISTER_REQ";
+        case CommandType::REGISTER_RESP: return os << "REGISTER_RESP";
         case CommandType::REQ_NOTIF_CLIENT: return os << "REQ_NOTIF_CLIENT";
         case CommandType::REQ_NOTIF_SERVER: return os << "REQ_NOTIF_SERVER";
         case CommandType::SEND_NOTIF: return os << "SEND_NOTIF";
@@ -50,7 +67,7 @@ inline std::ostream& operator<<(std::ostream& os, const CommandType& type) {
         case CommandType::VALIDATE_CODE_CLIENT: return os << "VALIDATE_CODE_CLIENT";
         case CommandType::VALIDATE_CODE_SERVER: return os << "VALIDATE_CODE_SERVER";
         case CommandType::VALIDATE_RESP_SERVER: return os << "VALIDATE_RESP_SERVER";
-        case CommandType::VALIDATE_RESP_CLIENT: return os << "VALIDATE_RESP_CLIENT";
+        case CommandType::EXIT_SCS: return os << "EXIT_SCS";
         default: return os << "UNKNOWN";
     }
 }

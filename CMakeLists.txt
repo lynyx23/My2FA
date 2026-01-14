@@ -32,8 +32,6 @@ set(COMMAND_LAYER
         src/Command_Layer/System_Commands/PingCommand.hpp
 
         src/Command_Layer/Credential_Login/CredentialLoginCommands.hpp
-        src/Command_Layer/Credential_Login/LoginRequestCommand.hpp
-        src/Command_Layer/Credential_Login/LoginResponseCommand.hpp
 
         src/Command_Layer/Notification_Login/NotificationLoginCommands.hpp
         src/Command_Layer/Notification_Login/RequestNotificationClientCommand.hpp
@@ -48,17 +46,23 @@ set(COMMAND_LAYER
         src/Command_Layer/Code_Login/ValidateCodeClientCommand.hpp
         src/Command_Layer/Code_Login/ValidateCodeServerCommand.hpp
         src/Command_Layer/Code_Login/ValidateResponseServerCommand.hpp
-        src/Command_Layer/Code_Login/ValidateResponseClientCommand.hpp
+
         src/Command_Layer/Context.hpp
         src/Command_Layer/System_Commands/ConnectCommand.cpp
         src/Command_Layer/Base/EntityType.hpp
-        src/Command_Layer/Credential_Login/LoginRequestCommand.cpp
-        src/Command_Layer/Credential_Login/LoginResponseCommand.cpp
         src/Command_Layer/System_Commands/ErrorCommand.cpp
         src/Command_Layer/Credential_Login/LogoutRequestCommand.cpp
         src/Command_Layer/Credential_Login/LogoutRequestCommand.hpp
         src/Command_Layer/Code_Login/CodeResponseCommand.cpp
         src/Command_Layer/Code_Login/RequestCodeClientCommand.cpp
+        src/Command_Layer/Credential_Login/CredentialRequestCommand.cpp
+        src/Command_Layer/Credential_Login/CredentialRequestCommand.hpp
+        src/Command_Layer/System_Commands/GenericResponseCommand.cpp
+        src/Command_Layer/System_Commands/GenericResponseCommand.hpp
+        src/Command_Layer/Code_Login/ExitSCSCommand.cpp
+        src/Command_Layer/Code_Login/ExitSCSCommand.hpp
+        src/Command_Layer/System_Commands/PairCommand.cpp
+        src/Command_Layer/System_Commands/PairCommand.hpp
 )
 
 add_executable(AuthServer
@@ -74,9 +78,11 @@ add_executable(AuthServer
         src/TOTP_Layer/TOTPManager.cpp
         src/TOTP_Layer/TOTPManager.hpp
         src/Connection_Layer/ServerConnectionHandler.cpp
+        src/Database_Layer/Database.cpp
+        src/Database_Layer/Database.hpp
 )
 
-target_compile_definitions(AuthServer PRIVATE SERVER_SIDE)
+target_compile_definitions(AuthServer PRIVATE A_SERVER)
 
 target_include_directories(AuthServer PUBLIC src)
 
@@ -92,39 +98,55 @@ add_executable(AuthClient
         src/Connection_Layer/ClientConnectionHandler.hpp
 )
 
+target_compile_definitions(AuthClient PRIVATE A_CLIENT)
+
 target_include_directories(AuthClient PUBLIC src)
 
 target_link_libraries(AuthClient PRIVATE
-        Qt::Core
 )
 
 add_executable(DummyServer
         src/Dummy_Server/DummyServer.cpp
+        ${COMMAND_LAYER}
         src/Connection_Layer/ServerConnectionHandler.hpp
         src/Session_Manager/SessionManager.hpp
         src/Session_Manager/SessionManager.cpp
         src/Connection_Layer/ServerConnectionHandler.cpp
+        src/Connection_Layer/ClientConnectionHandler.hpp
+        src/Auth_Layer/AuthManager.cpp
+        src/Auth_Layer/AuthManager.hpp
+        src/Database_Layer/Database.cpp
+        src/Database_Layer/Database.hpp
 )
+
+target_compile_definitions(DummyServer PRIVATE D_SERVER)
 
 target_include_directories(DummyServer PUBLIC src)
 
 target_link_libraries(DummyServer PRIVATE
-        CommandLayerLib
-        Qt::Core
+        SQLiteCpp
+        OpenSSL::Crypto
+        OpenSSL::SSL
 )
 add_executable(DummyClient
+        ${COMMAND_LAYER}
         src/Dummy_Client/DummyClient.cpp
         src/Connection_Layer/ClientConnectionHandler.hpp
 )
 
+target_include_directories(DummyClient PUBLIC src)
+
+target_compile_definitions(DummyClient PRIVATE D_CLIENT)
+
 target_link_libraries(DummyClient PRIVATE
-        CommandLayerLib
-        Qt::Core
+
 )
 
 add_executable(DatabaseTest src/Auth_Layer/Database_Test.cpp
         src/Auth_Layer/AuthManager.hpp
-        src/Auth_Layer/AuthManager.cpp)
+        src/Auth_Layer/AuthManager.cpp
+        src/Database_Layer/Database.cpp
+        src/Database_Layer/Database.hpp)
 
 target_include_directories(DatabaseTest PUBLIC src)
 

@@ -1,7 +1,7 @@
 #ifndef MY2FA_TOTPMANAGER_HPP
 #define MY2FA_TOTPMANAGER_HPP
 
-#ifdef SERVER_SIDE
+#ifdef A_SERVER
 #include <Command_Layer/Context.hpp>
 #include <memory>
 #include <thread>
@@ -12,7 +12,7 @@ public:
     explicit TOTPManager(Context &ctx);
     ~TOTPManager() = default;
     void start();
-    void sendCodeToClient(const std::shared_ptr<Session> &session);
+    void sendCodesToClient(const std::shared_ptr<Session> &session);
 private:
     Context &m_ctx;
     std::jthread m_thread;

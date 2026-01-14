@@ -5,7 +5,6 @@
 #include "CodeResponseCommand.hpp"
 #include "ValidateCodeClientCommand.hpp"
 #include "ValidateCodeServerCommand.hpp"
-#include "ValidateResponseClientCommand.hpp"
 #include "ValidateResponseServerCommand.hpp"
 
 // I am aware this increases compile time, but for a project this small it's fine

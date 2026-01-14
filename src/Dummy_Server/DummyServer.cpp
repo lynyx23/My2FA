@@ -3,112 +3,49 @@
 #include <sys/time.h>
 #include <csignal>
 
-#include "../Command_Layer/CommandFactory.hpp"
-#include "../Command_Layer/System_Commands/SystemCommands.hpp"
-#include "../Command_Layer/Credential_Login/CredentialLoginCommands.hpp"
-#include "../Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
-#include "../Command_Layer/Code_Login/CodeLoginCommands.hpp"
-#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include "Auth_Layer/AuthManager.hpp"
+#include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
+#include "Command_Layer/CommandFactory.hpp"
+#include "Command_Layer/Context.hpp"
+#include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
+#include "Command_Layer/System_Commands/SystemCommands.hpp"
 #include "Connection_Layer/ClientConnectionHandler.hpp"
+#include "Connection_Layer/ServerConnectionHandler.hpp"
+#include "Session_Manager/SessionManager.hpp"
 
-#define DS_PORT 27702      // Dummy Server Port
-#define AS_PORT 27701      // Auth Server Port
-#define MAX_CLIENTS 30
-#define BUFFER_SIZE 1024
-
-std::string handleCommand(const std::unique_ptr<Command> &command) {
-    std::ostringstream ss;
-    switch (command->getType()) {
-        case CommandType::CONN: {
-            const auto *cmd = dynamic_cast<const ConnectCommand *>(command.get());
-            ss << "Received command CONN: Type = " << cmd->getConnectionType()
-                    << " , ID = " << cmd->getId();
-            break;
-        }
-        case CommandType::ERR: {
-            const auto *cmd = dynamic_cast<const ErrorCommand *>(command.get());
-            ss << "Received command ERR: Type = " << cmd->getCode()
-                    << " , Msg = " << cmd->getMessage();
-            break;
-        }
-        case CommandType::LOGIN_REQ: {
-            const auto *cmd = dynamic_cast<const LoginRequestCommand *>(command.get());
-            ss << "Received command LOGIN_REQ: User = " << cmd->getUsername()
-                    << " , Password = " << cmd->getPassword();
-            break;
-        }
-        case CommandType::REQ_NOTIF_CLIENT: {
-            const auto *cmd = dynamic_cast<const RequestNotificationClientCommand *>(command.get());
-            ss << "Received command REQ_NOTIF_CLIENT: UUID = " << cmd->getUuid();
-            break;
-        }
-        case CommandType::VALIDATE_CODE_CLIENT: {
-            const auto *cmd = dynamic_cast<const ValidateCodeClientCommand *>(command.get());
-            ss << "Received command VALIDATE_CODE_CLIENT: Code = " << cmd->getCode()
-                    << " , UUID = " << cmd->getUuid();
-            break;
-        }
-        case CommandType::LOGIN_RESP: {
-            const auto *cmd = dynamic_cast<const LoginResponseCommand *>(command.get());
-            ss << "Received command LOGIN_RESP: Response = " << (cmd->getResponse() ? "True" : "False")
-                    << " , UUID = " << cmd->getUuid();
-            break;
-        }
-        case CommandType::NOTIF_RESP_SERVER: {
-            const auto *cmd = dynamic_cast<const NotificationResponseServerCommand *>(command.get());
-            ss << "Received command NOTIF_RESP_SERVER: Response = " << (cmd->getResponse() ? "True" : "False")
-                    << " , UUID = " << cmd->getUuid();
-            break;
-        }
-        case CommandType::VALIDATE_RESP_CLIENT: {
-            const auto *cmd = dynamic_cast<const ValidateResponseClientCommand *>(command.get());
-            ss << "Received command VALIDATE_RESP_CLIENT: Response = " << (cmd->getResp() ? "True" : "False")
-                    << " , UUID = " << cmd->getUuid();
-            break;
-        }
-        default:
-            ss << "Received Command ID: " << static_cast<int>(command->getType());
+void handleCommand(const std::unique_ptr<Command> &command, const int sender_fd, Context &ctx) {
+    if (!command) {
+        std::cerr << "[DS Error] Received invalid command!\n";
+        return;
     }
-    return ss.str();
+    try {
+        command->execute(ctx, sender_fd);
+    } catch (std::exception &e) {
+        std::cerr << "[DS Error] Command execution failed: " << e.what() << "\n";
+    }
 }
 
-void handleUserInput(ServerConnectionHandler &ds_handler,
-                     ClientConnectionHandler *as_handler, const std::string &input) {
+//TODO DONT FORGET TO MAKE IT SO THAT A USER CAN HAVE MULTIPLE APP SERVERS LOGGED
+
+void handleUserInput(Context &ctx, const std::string &input) {
     auto args = split(input);
     if (args.empty()) return;
 
     std::unique_ptr<Command> command = nullptr;
 
     if (args[0] == "help") {
-        std::cout << "  clients                                     : List all active client file descriptors.\n"
-                << "  conn <type> <id>                            : Send Handshake to AS\n"
-                << "  reconnect                                   : Reconnect to AS\n"
-                << "  err <code> <msg>                            : Send Error to AS\n"
-                << "  req_notif_server <uuid> <appid>             : Send Notification Request to AS\n"
-                << "  notif_resp_server <resp> <uuid>             : Send Notification Result to DC\n"
-                << "  validate_code_server <code> <uuid> <appid>  : Send Code Verify Request to AS\n"
-                << "  validate_resp_client <resp> <uuid>          : Send Code Result to DC\n"
-                << "  exit                                        : Exit\n";
+        std::cout << "  clients                                     : List all active clients.\n"
+                  << "  reconnect                                   : Reconnect to AS\n"
+                  << "  err <code> <msg>                            : Send Error to AS\n"
+                  << "  req_notif_server <uuid> <appid>             : Send Notification Request to AS\n"
+                  << "  notif_resp_server <resp> <uuid>             : Send Notification Result to DC\n"
+                  << "  validate_code_server <code> <uuid> <appid>  : Send Code Verify Request to AS\n"
+                  << "  validate_resp_client <resp> <uuid>          : Send Code Result to DC\n"
+                  << "  exit                                        : Exit\n";
         return;
     } else if (args[0] == "reconnect") return;
-    // } else if (args[0] == "clients") {
-    //     std::cout << "[DS Log] Active Sockets: ";
-    //     bool found = false;
-    //     // for (int i = 0; i < MAX_CLIENTS; ++i) {
-    //     //     if (client_socket[i] > 0) {
-    //     //         std::cout << client_socket[i] << " ";
-    //     //         found = true;
-    //     //     }
-    //     // }
-    //     if (!found) std::cout << "None.";
-        // std::cout << "\n";
-        // return;
-    else if (args[0] == "conn") {
-        if (args.size() < 3) {
-            std::cout << "[DS Error] Usage: conn <type> <id>\n";
-            return;
-        }
-        command = std::make_unique<ConnectCommand>(args[1], args[2]);
+    else if (args[0] == "clients") {
+        ctx.session_manager.displayConnections();
     } else if (args[0] == "err") {
         if (args.size() < 3) {
             std::cout << "[DS Error] Usage: err <code> <msg>\n";
@@ -130,17 +67,10 @@ void handleUserInput(ServerConnectionHandler &ds_handler,
         command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
     } else if (args[0] == "validate_code_server") {
         if (args.size() < 4) {
-            std::cout << "[DS Error] Usage: validate_code_server <code> <uuid> <appid>\n";
+            std::cout << "[DS Error] Usage: validate_code_server <code> <username> <appid>\n";
             return;
         }
-        command = std::make_unique<ValidateCodeServerCommand>(std::stoi(args[1]), args[2], std::stoi(args[3]));
-    } else if (args[0] == "validate_resp_client") {
-        if (args.size() < 3) {
-            std::cout << "[DS Error] Usage: validate_resp_client <1/0> <uuid>\n";
-            return;
-        }
-        bool resp = (args[1] == "1" || args[1] == "true");
-        command = std::make_unique<ValidateResponseClientCommand>(resp, args[2]);
+        command = std::make_unique<ValidateCodeServerCommand>(args[1], args[2], args[3]);
     } else {
         std::cout << "[DS Error] Unknown command! Type help.\n";
         return;
@@ -151,33 +81,23 @@ void handleUserInput(ServerConnectionHandler &ds_handler,
 
         switch (command->getType()) {
             case CommandType::CONN:
-            case CommandType::ERR:
             case CommandType::REQ_NOTIF_SERVER:
             case CommandType::VALIDATE_CODE_SERVER:
-                // try {
-                //     as_handler->sendCommand(command);
-                //     std::cout << "[DS -> AS] Sent: " << data << "\n";
-                // } catch (std::exception &e) {
-                //     std::cerr << "[DS Error] Not connected to Auth Server.\n" << e.what() << "\n";
-                // }
-                if (as_handler && as_handler->isRunning()) {
-                    as_handler->sendCommand(command);
+                // try catch doesn't work
+                if (ctx.client_handler && ctx.client_handler->isRunning()) {
+                    ctx.client_handler->sendCommand(command);
                     std::cout << "[DS -> AS] Sent: " << data << "\n";
                 } else {
                     std::cerr << "[DS Error] Not connected to Auth Server.\n";
                 }
                 break;
-
-            case CommandType::NOTIF_RESP_SERVER:
-            case CommandType::VALIDATE_RESP_CLIENT:
-                std::cout << "[DS -> DC] Sent: " << data << "\n";
-                // For now it sends this to every client
-                ds_handler.broadcastCommand(command);
-                break;
-
             default:
-                std::cout << "[DS Error] No routing rule for Command ID "
-                        << static_cast<int>(command->getType()) << "\n";
+                try {
+                    ctx.server_handler.broadcastCommand(command);
+                } catch (std::exception &e) {
+                    std::cerr << "[DS Error] No routing rule for Command: "
+                        << command->getType() << "!\n";
+                }
                 break;
         }
     }
@@ -191,35 +111,55 @@ bool checkConsoleInput() {
     return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
 }
 
-int main() {
-    signal(SIGPIPE, SIG_IGN);
+int main(int argc, char *argv[]) {
+    uint32_t DS_PORT = 27702;
+    try {
+        DS_PORT = std::stoi(argv[1]);
+    } catch (std::exception &e) {
+        std::cerr << "[DS Error] Invalid port: " << e.what() << " | " << argv[1] << "\n";
+    }
+    constexpr uint32_t AS_PORT = 27701;  // Auth Server Port
+    const std::string app_id = "app1";
+    const std::string IP = "127.0.0.1";
+
+    signal(SIGPIPE, SIG_IGN); // makes sure the server doesn't crash if it interacts with a dead socket
 
     ServerConnectionHandler ds_handler(DS_PORT);
+    SessionManager session_manager;
+    AuthManager auth_manager("ds_" + app_id);
+
+    Context ctx{session_manager, &auth_manager, ds_handler, nullptr, app_id};
 
     ds_handler.setCommandCallback([&](const int client_fd, const std::unique_ptr<Command> &command) {
-        std::cout << "[DS Log] Handling command from SD " << client_fd
-                << "\n" << handleCommand(command) << "\n";
+        std::cout << "[DS Log] Handling command from Client " << client_fd << "\n";
+        handleCommand(command, client_fd, ctx);
     });
     ds_handler.setConnectCallback([&](const int client_fd) {
         std::cout << "[DS Log] New client connected: " << client_fd << "\n";
+        session_manager.addSession(client_fd);
     });
     ds_handler.setDisconnectCallback([&](const int client_fd) {
         std::cout << "[DS Log] Client disconnected: " << client_fd << "\n";
+        session_manager.removeSession(client_fd);
     });
 
     bool as_connected;
     std::unique_ptr<ClientConnectionHandler> as_handler = nullptr;
-    try {
-        as_handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", AS_PORT);
-        as_handler->setCallback([&](const std::unique_ptr<Command> &command) {
-            std::cout << "[DS Log] Handling command from AS ...\n"
-                    << handleCommand(command) << "\n";
-        });
-        as_connected = true;
-    } catch (...) {
-        as_connected = false;
-        std::cerr << "[DS Error] Could not connect to AS.\n";
-    }
+    auto setupASHandler = [&]() {
+        try {
+            as_handler = std::make_unique<ClientConnectionHandler>(EntityType::DUMMY_SERVER, IP, AS_PORT, app_id);
+            as_handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
+                std::cout << "[DS Log] Handling command from AS ...\n";
+                handleCommand(command, fd, ctx);
+            });
+            ctx.client_handler = as_handler.get();
+            as_connected = true;
+        } catch (...) {
+            as_connected = false;
+            std::cerr << "[DS Error] Could not connect to AS.\n";
+        }
+    };
+    setupASHandler();
 
     bool run = true;
     while (run) {
@@ -235,22 +175,21 @@ int main() {
             std::string input;
             std::getline(std::cin, input);
 
-            if (split(input)[0] == "exit") run = false;
-            if (split(input)[0] == "reconnect") {
-                try {
-                    as_handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", AS_PORT);
-                    as_handler->setCallback([&](const std::unique_ptr<Command> &command) {
-                        std::cout << "[DS Log] Handling command from AS ...\n"
-                                << handleCommand(command) << "\n";
-                    });
-                    as_connected = true;
-                } catch (...) {
-                    as_connected = false;
-                    std::cerr << "[DS Error] Could not reconnect to Auth Server.\n";
-                }
-            }
             if (!input.empty()) {
-                handleUserInput(ds_handler, as_handler.get(), input);
+                if (split(input)[0] == "exit") {
+                    run = false;
+                    continue;
+                }
+                if (split(input)[0] == "reconnect") {
+                    setupASHandler();
+                    continue;
+                }
+                if (split(input)[0] == "clear" || split(input)[0] == "cls"
+                        || split(input)[0] == "cl" || split(input)[0] == "clr") {
+                    std::cout << "\033[2J\033[H" << std::flush;
+                    continue;
+                }
+                handleUserInput(ctx, input);
             }
         }
     }

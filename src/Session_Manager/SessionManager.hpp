@@ -2,12 +2,13 @@
 #define MY2FA_SESSIONMANAGER_HPP
 
 #pragma once
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
-#include <atomic>
 
 #include "Command_Layer/Base/EntityType.hpp"
 
@@ -26,14 +27,18 @@ inline std::string stringifyEntityType(const EntityType &type) {
     }
 }
 
+struct AC_Data {
+    std::atomic<bool> isLogged = false;
+    std::atomic<bool> isInCodeState = false;
+    std::map<std::string, std::string> secret_pairs;
+};
+
 struct Session {
     int id;
     EntityType type;
-    std::string uuid;
-    std::string secret;
-    std::atomic<bool> isLogged;
+    std::string identity; // username for clients and app_id for DS
     std::atomic<bool> isValid;
-    std::atomic<bool> isInCodeState;
+    std::optional<AC_Data> ac_data;
 };
 
 class SessionManager {
@@ -43,21 +48,22 @@ public:
     void addSession(int id);
     void removeSession(int id);
 
-    void handleHandshake(int id, EntityType type);
+    void handleHandshake(int id, EntityType type, const std::string &app_id);
     void displayConnections();
-    [[nodiscard]] bool checkLoggedIn(const std::string &uuid) const;
     void logout(int id);
 
     void setIsLogged(int id, bool isLogged);
-    void setUUID(int id, const std::string &uuid);
     void setSecret(int id, const std::string &secret);
+    void setSecretPairings(int id, const std::map<std::string, std::string> &pairings);
     void setIsInCodeState(int id, bool isInCodeState);
+    void setIdentity(int id, const std::string &identity);
 
-    int getID(int id) const;
+    int getIDFromUsername(const std::string &username) const;
     [[nodiscard]] std::shared_ptr<Session> getSession(int id) const;
-    [[nodiscard]] std::string getUUID(int id) const;
+    [[nodiscard]] std::string getSecret(int id) const;
     [[nodiscard]] EntityType getEntityType(int id) const;
     bool getIsLogged(int id) const;
+    [[nodiscard]] std::string getIdentity(int id) const;
     [[nodiscard]] std::vector<std::shared_ptr<Session>> getActiveSessions() const;
 
 private:

@@ -15,7 +15,7 @@ std::string ErrorCommand::serialize() const  {
 }
 
 void ErrorCommand::execute(Context &ctx, const int fd) {
-    std::cerr << "[Rcv] Error " << m_code << ": " << m_msg << "\n";
+    std::cerr << "[Err] Error " << m_code << ": " << m_msg << "\n";
 }
 
 CommandType ErrorCommand::getType() const  {

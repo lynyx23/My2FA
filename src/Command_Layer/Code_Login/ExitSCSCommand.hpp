@@ -1,11 +1,11 @@
-#ifndef MY2FA_LOGOUTREQUESTCOMMAND_HPP
-#define MY2FA_LOGOUTREQUESTCOMMAND_HPP
+#ifndef MY2FA_EXITSCSCOMMAND_HPP
+#define MY2FA_EXITSCSCOMMAND_HPP
 
 #include "Command_Layer/Base/Command.hpp"
 
-class LogoutRequestCommand : public Command {
+class ExitSCSCommand : public Command {
 public:
-    LogoutRequestCommand() = default;
+    ExitSCSCommand() = default;
 
     [[nodiscard]] std::string serialize() const override;
 
@@ -14,4 +14,4 @@ public:
     [[nodiscard]] CommandType getType() const override;
 };
 
-#endif // MY2FA_LOGOUTREQUESTCOMMAND_HPP
+#endif // MY2FA_EXITSCSCOMMAND_HPP

@@ -5,18 +5,16 @@
 
 class RequestCodeClientCommand : public Command {
 public:
-    RequestCodeClientCommand(std::string uuid, int appid);
+    explicit RequestCodeClientCommand(std::string appid);
 
     [[nodiscard]] std::string serialize() const override;
     void execute(Context &ctx, int client_fd) override;
 
     [[nodiscard]] CommandType getType() const override;
-    [[nodiscard]] std::string getUuid() const;
-    [[nodiscard]] int getAppid() const;
+    [[nodiscard]] std::string getAppid() const;
 
 private:
-    std::string m_uuid;
-    const int m_appid;
+    const std::string m_appid;
 };
 
 #endif //MY2FA_REQUESTCODECLIENTCOMMAND_HPP

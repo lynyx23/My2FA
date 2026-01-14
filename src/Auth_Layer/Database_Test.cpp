@@ -1,14 +1,20 @@
 #include <iostream>
 #include <memory>
-#include "AuthManager.hpp"
+//#include "AuthManager.hpp"
+//#include <SQLiteCpp/SQLiteCpp.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 int main() {
-    AuthManager am("as");
+    fs::path db_path = __FILE__;
+    std::cout << db_path.parent_path() / "as.db" << "\n";
+    //AuthManager am("as");
     // am.placeholder();
     // am.show();
     // am.testRemoveUser("admin");
-    am.testAddUser("test", "test", "CJNBQQ3E3L3OSFEF3LKSNN2DPRVQCE7I");
-    am.show();
+    // am.testAddUser("admin", "admin", "a");
+    //am.show();
 
     // if (am.loginUser("admin", "admin")) {
     //     std::cout << "Login successful!\n";

@@ -3,7 +3,7 @@
 
 #pragma once
 #include <string>
-#ifdef SERVER_SIDE
+#ifdef A_SERVER
 class SessionManager;
 class AuthManager;
 class ServerConnectionHandler;
@@ -15,16 +15,36 @@ struct Context {
     ServerConnectionHandler &server_handler;
     TOTPManager *totp_manager;
 };
-#else
+#endif
+// Dummy Server definition
+#ifdef D_SERVER
+class SessionManager;
+class AuthManager;
+class ServerConnectionHandler;
+class ClientConnectionHandler;
+
+struct Context {
+    SessionManager &session_manager;
+    AuthManager *auth_manager;
+    ServerConnectionHandler &server_handler;
+    ClientConnectionHandler *client_handler;
+    std::string app_id;
+};
+#endif
+#if defined(A_CLIENT) || defined(D_CLIENT)
 // Client definition
-#include <string>
+#include "Connection_Layer/ClientConnectionHandler.hpp"
 
 struct Context {
     bool isLogged;
-    std::string uuid;
+    bool isConnected;
+    std::string username;
+    ClientConnectionHandler *client_handler;
+#ifdef A_CLIENT
     bool codeState;
-    std::string code;
+    std::map<std::string, std::string> codes;
     time_t timeExpiration;
+#endif
 };
 
 #endif

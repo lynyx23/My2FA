@@ -1,5 +1,6 @@
+//#ifdef A_SERVER
 #include <sstream>
-#include <signal.h>
+#include <csignal>
 #include <sys/types.h>
 #include <sys/time.h>
 
@@ -22,32 +23,6 @@ void handleCommand(const std::unique_ptr<Command> &command, const int client_fd,
     } catch (const std::exception &e) {
         std::cerr << "[AS Error] Command " << "(" << command->getType() << ") execution failed: " << e.what() << "\n";
     }
-        // case CommandType::REQ_NOTIF_SERVER: {
-        //     const auto *cmd = dynamic_cast<const RequestNotificationServerCommand *>(command.get());
-        //     ss << "Received command REQ_NOTIF_SERVER: UUID = " << cmd->getUuid()
-        //             << " , AppID = " << cmd->getAppid();
-        //     break;
-        // }
-        // case CommandType::NOTIF_RESP_CLIENT: {
-        //     const auto *cmd = dynamic_cast<const NotificationResponseClientCommand *>(command.get());
-        //     ss << "Received command NOTIF_RESP_CLIENT: Response = "
-        //             << (cmd->getResponse() ? "True" : "False")
-        //             << " , AppID = " << cmd->getAppid();
-        //     break;
-        // }
-        // case CommandType::REQ_CODE_CLIENT: {
-        //     const auto *cmd = dynamic_cast<const RequestCodeClientCommand *>(command.get());
-        //     ss << "Received command REQ_CODE_CLIENT: UUID = " << cmd->getUuid()
-        //             << " , AppID = " << cmd->getAppid();
-        //     break;
-        // }
-        // case CommandType::VALIDATE_CODE_SERVER: {
-        //     const auto *cmd = dynamic_cast<const ValidateCodeServerCommand *>(command.get());
-        //     ss << "Received command VALIDATE_CODE_SERVER: Code = " << cmd->getCode()
-        //             << " , UUID = " << cmd->getUuid()
-        //             << " , AppID = " << cmd->getAppid();
-        //     break;
-        // }
 }
 
 void handleUserInput(ServerConnectionHandler &handler, const std::string &input, SessionManager &session_manager) {
@@ -57,12 +32,14 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input,
     std::unique_ptr<Command> command = nullptr;
 
     if (args[0] == "help") {
-        std::cout << "  clients                                     : List all active client file descriptors.\n"
-                << "  send_notif <appid>                          : Send Push to Client (e.g. send_notif;12)\n"
-                << "  code_resp <code>                            : Send Code to Client (e.g. code_resp;123456)\n"
-                << "  notif_resp_server <1/0> <uuid>              : Send Push Result to DS (e.g. notif_resp_server;1;user123)\n"
-                << "  validate_resp_server <1/0> <uuid> <appid>   : Send Code Result to DS (e.g. validate_resp_server;1;user123;12)\n"
-                << "  exit                                        : Shut down the server.\n";
+        std::cout << std::flush
+                  << "  help                                        : Shows this menu\n"
+                  << "  clients                                     : List all active client file descriptors.\n"
+                  << "  send_notif <appid>                          : Send Push to Client (e.g. send_notif;12)\n"
+                  << "  code_resp <code>                            : Send Code to Client (e.g. code_resp;123456)\n"
+                  << "  notif_resp_server <1/0> <uuid>              : Send Push Result to DS (e.g. notif_resp_server;1;user123)\n"
+                  << "  validate_resp_server <1/0> <uuid> <appid>   : Send Code Result to DS (e.g. validate_resp_server;1;user123;12)\n"
+                  << "  exit                                        : Shut down the server.\n";
         return;
     } else if (args[0] == "clients") {
         session_manager.displayConnections();
@@ -94,7 +71,7 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input,
             return;
         }
         bool resp = (args[1] == "1" || args[1] == "true");
-        command = std::make_unique<ValidateResponseServerCommand>(resp, args[2], std::stoi(args[3]));
+        command = std::make_unique<ValidateResponseServerCommand>(resp, args[2], args[3]);
     } else {
         std::cerr << "[AS Error] Unknown command. Type 'help'.\n";
         return;
@@ -134,6 +111,7 @@ bool checkConsoleInput() {
 
 int main() {
     signal(SIGPIPE, SIG_IGN); // avoid crashes from sending
+
     constexpr uint32_t PORT = 27701; // Auth port
 
     AuthManager auth_manager("as");
@@ -168,9 +146,22 @@ int main() {
             std::string input;
             std::getline(std::cin, input);
             if (!input.empty()) {
-                if (split(input)[0] == "exit") run = false;
+                if (split(input)[0] == "exit") {
+                    run = false;
+                    continue;
+                }
+                if (split(input)[0] == "clear" || split(input)[0] == "cls"
+                        || split(input)[0] == "cl" || split(input)[0] == "clr") {
+                    std::cout << "\033[2J\033[H" << std::flush;
+                    continue;
+                }
+                if (split(input)[0] == "db") {
+                    ctx.auth_manager->show();
+                    continue;
+                }
                 handleUserInput(handler, input, session_manager);
             }
         }
     }
 }
+//#endif // A_SERVER

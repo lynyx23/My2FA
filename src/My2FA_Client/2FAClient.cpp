@@ -1,12 +1,15 @@
 #include <iomanip>
 #include <memory>
 #include <thread>
+#include "Command_Layer/Base/EntityType.hpp"
 #include "Command_Layer/Code_Login/CodeLoginCommands.hpp"
+#include "Command_Layer/Code_Login/ExitSCSCommand.hpp"
 #include "Command_Layer/CommandFactory.hpp"
 #include "Command_Layer/Context.hpp"
-#include "Command_Layer/Credential_Login/LoginRequestCommand.hpp"
+#include "Command_Layer/Credential_Login/CredentialRequestCommand.hpp"
 #include "Command_Layer/Credential_Login/LogoutRequestCommand.hpp"
 #include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
+#include "Command_Layer/System_Commands/PairCommand.hpp"
 #include "Command_Layer/System_Commands/SystemCommands.hpp"
 #include "Connection_Layer/ClientConnectionHandler.hpp"
 
@@ -20,25 +23,40 @@ bool checkConsoleInput() {
     return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
 }
 
-void printCodeState(const uint32_t remainingSeconds, const std::string &code) {
+uint8_t printCodeState(const uint32_t remainingSeconds, std::map<std::string, std::string> &codes) {
     constexpr uint8_t width = 30;
+    uint8_t lines = 0;
 
-    std::cout << "\rCode: [\033[1;92m" << code << "\033[0m] [";
+    std::cout << "\r[";
     for (uint8_t i = 0; i < width; i++) {
-        if (i < remainingSeconds)
+        if (i < remainingSeconds) {
             std::cout << "\033[1;92m■\033[0m";
-        else
-            std::cout << " ";
+        } else std::cout << " ";
     }
-    std::cout << "] " << remainingSeconds << "s" << std::flush;
+
+    std::cout << "] " << remainingSeconds << "s\033[K\n";
+    lines++;
+
+    if (codes.empty()) {
+        std::cout << "   (Waiting for codes...)\033[K\n";
+        lines++;
+    } else {
+        for (const auto &[app_id, code] : codes) {
+            std::cout << "  " << std::left << std::setw(15) << app_id
+                      << ": [\033[1;92m" << code << "\033[0m]   \033[K\n";
+            lines++;
+        }
+    }
+
+    std::cout << std::flush;
+    return lines;
 }
-
-
+//TODO polish interface
 void runCodeState(Context &ctx, ClientConnectionHandler &handler) {
     std::cout << "\n[Live TOTP View - Press ENTER to return]\n" << std::flush;
 
     ctx.codeState = true;
-    ctx.code = "...";
+    int last_height = 0;
 
     while (ctx.codeState && handler.isRunning()) {
         if (checkConsoleInput()) {
@@ -50,12 +68,16 @@ void runCodeState(Context &ctx, ClientConnectionHandler &handler) {
 
         handler.update();
 
-        const auto remaining = static_cast<uint32_t>(std::difftime(ctx.timeExpiration, std::time(nullptr)));
-        printCodeState(remaining, ctx.code);
+        if (last_height > 0) {
+            std::cout << "\033[" << last_height << "A";
+        }
 
+        const auto remaining = static_cast<uint32_t>(std::difftime(ctx.timeExpiration, std::time(nullptr)));
+        last_height = printCodeState(remaining, ctx.codes);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-    std::cout << "\r\033[A\033[2K[Exiting TOTP view]\n" << std::flush;
+    ctx.client_handler->sendCommand(std::make_unique<ExitSCSCommand>());
+    std::cout << "\n\033[2J[Exiting TOTP view]\n" << std::flush;
 }
 
 void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::string &input) {
@@ -66,13 +88,31 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
     std::unique_ptr<Command> command = nullptr;
     // note: switch won't work with strings
     if (args[0] == "help") {
-        std::cout << "  help                   : Show this menu\n"
-                  << "  conn                   : Handshake (e.g. conn)\n"
-                  << "  code <uuid> <appid>    : Request 2FA Code (e.g. code;uuid_123;101)\n"
-                  << "  accept <appid>         : Accept Notification (e.g. accept;101)\n"
-                  << "  refuse <appid>         : Refuse Notification (e.g. refuse;101)\n"
-                  << "  reconnect              : Reconnect to AS\n"
-                  << "  exit                   : Quit\n";
+        if (!ctx.isConnected) {
+            std::cout << std::flush
+                      << "  help         : Show this menu\n"
+                      << "  reconnect    : Manually reconnect to AuthServer\n"
+                      << "  exit         : Quit\n";
+        }
+        else if (!ctx.isLogged) {
+            std::cout << std::flush
+                      << "  help                          : Show this menu\n"
+                      << "  login <user> <password>       : Login to AuthServer (e.g. login;user;pass)\n"
+                      << "  register <user> <password>    : Register a new user on AuthServer (e.g. register;user;pass)\n"
+                      << "  exit                          : Quit\n";
+        }
+        else {
+            std::cout << std::flush
+                      << "  help                          : Show this menu\n"
+                      << "  login <user> <password>       : Login to AuthServer (e.g. login;user;pass)\n"
+                      << "  logout                        : Logs out current user (e.g. logout)\n"
+                      << "  register <user> <password>    : Register a new user on AuthServer (e.g. register;user;pass)\n"
+                      << "  register                      : Register new user (e.g. register;user;pass)\n"
+                      << "  code <uuid> <appid>           : Request 2FA Code (e.g. code;101)\n"
+                      << "  accept <appid>                : Accept Notification (e.g. accept;101)\n"
+                      << "  refuse <appid>                : Refuse Notification (e.g. refuse;101)\n"
+                      << "  exit                          : Quit\n";
+        }
         return;
     } else if (args[0] == "reconnect" || args[0] == "exit")
         return;
@@ -80,23 +120,29 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
         command = std::make_unique<ConnectCommand>(EntityType::AUTH_CLIENT);
     else if (args[0] == "accept") {
         if (args.size() < 2) {
-            std::cerr << "[AC Error] Incorrect format: accept <appid>\n ";
+            std::cerr << "[AC Error] Incorrect format: accept;<appid>\n ";
             return;
         }
         command = std::make_unique<NotificationResponseClientCommand>(true, std::stoi(args[1]));
     } else if (args[0] == "refuse") {
         if (args.size() < 2) {
-            std::cerr << "[Ac Error] Incorrect format: refuse <appid>\n ";
+            std::cerr << "[Ac Error] Incorrect format: refuse;<appid>\n ";
             return;
         }
         command = std::make_unique<NotificationResponseClientCommand>(false, std::stoi(args[1]));
+    } else if (args[0] == "pair") {
+        if (args.size() != 2) {
+            std::cerr << "[AC Error] Incorrect format: pair;<token>\n ";
+            return;
+        }
+        command = std::make_unique<ValidateCodeClientCommand>(args[1]);
     } else if (args[0] == "code") {
-        if (args.size() != 3) {
-            std::cerr << "[AC Error] Incorrect format: code <uuid> <appid>\n ";
+        if (args.size() != 2) {
+            std::cerr << "[AC Error] Incorrect format: code;<appid>\n ";
             return;
         }
         try {
-            command = std::make_unique<RequestCodeClientCommand>(args[1], std::stoi(args[2]));
+            command = std::make_unique<RequestCodeClientCommand>(args[1]);
             if (handler && handler->isRunning()) {
                 handler->sendCommand(command);
                 runCodeState(ctx, *handler);
@@ -108,13 +154,21 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
         }
     } else if (args[0] == "login") {
         if (args.size() != 3) {
-            std::cerr << "[AC Error] Incorrect format: login <user> <pass>\n ";
+            std::cerr << "[AC Error] Incorrect format: login;<user>;<pass>\n ";
             return;
         }
-        command = std::make_unique<LoginRequestCommand>(args[1], args[2]);
+        command = std::make_unique<CredentialRequestCommand>(CommandType::LOGIN_REQ, args[1], args[2]);
     } else if (args[0] == "logout") {
-        command = std::make_unique<LogoutRequestCommand>(ctx.uuid);
-    } else {
+        ctx.username = "";
+        ctx.isLogged = false;
+        command = std::make_unique<LogoutRequestCommand>();
+    } else if (args[0] == "register") {
+        if (args.size() != 3) {
+            std::cerr << "[AC Error] Incorrect format: register;<user>;<pass>\n ";
+            return;
+        }
+        command = std::make_unique<CredentialRequestCommand>(CommandType::REGISTER_REQ, args[1], args[2]);
+    }  else {
         std::cout << "[AC Error] Unknown command! Type help.\n ";
         return;
     }
@@ -147,20 +201,22 @@ void handleCommand(Context &ctx, ClientConnectionHandler *handler, const std::un
 }
 
 int main() {
-    bool is_connected;
+    constexpr uint32_t AS_PORT = 27701;
+    const std::string IP = "127.0.0.1";
 
-    Context ctx{false, "0", false};
+    Context ctx{false, false, "0", nullptr, false};
 
     std::unique_ptr<ClientConnectionHandler> handler = nullptr;
     auto setupHandler = [&]() {
         try {
-            handler = std::make_unique<ClientConnectionHandler>("127.0.0.1", PORT);
+            handler = std::make_unique<ClientConnectionHandler>(EntityType::AUTH_CLIENT, IP, AS_PORT);
             handler->setCallback([&](const int fd, const std::unique_ptr<Command> &command) {
                 handleCommand(ctx, handler.get(), command, fd);
             });
-            is_connected = true;
+            ctx.client_handler = handler.get();
+            ctx.isConnected = true;
         } catch (...) {
-            is_connected = false;
+            ctx.isConnected = false;
             std::cerr << "[AC Error] Connection to AS Failed." << "\n";
         }
     };
@@ -168,10 +224,10 @@ int main() {
 
     bool run = true;
     while (run) {
-        if (is_connected && handler) {
+        if (ctx.isConnected && handler) {
             if (!handler->isRunning()) {
                 std::cerr << "[AC Error] AS disconnected!\n";
-                is_connected = false;
+                ctx.isConnected = false;
             } else
                 handler->update();
         }
@@ -182,9 +238,16 @@ int main() {
             if (!input.empty()) {
                 if (split(input)[0] == "exit") {
                     run = false;
+                    continue;
                 }
                 if (split(input)[0] == "reconnect") {
                     setupHandler();
+                    continue;
+                }
+                if (split(input)[0] == "clear" || split(input)[0] == "cls"
+                        || split(input)[0] == "cl" || split(input)[0] == "clr") {
+                    std::cout << "\033[2J\033[H" << std::flush;
+                    continue;
                 }
                 handleUserInput(ctx, handler.get(), input);
             }

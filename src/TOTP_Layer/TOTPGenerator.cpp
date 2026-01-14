@@ -1,10 +1,11 @@
 #include "TOTPGenerator.hpp"
+#include <ctime>
 #include <endian.h>
 #include <iomanip>
+#include <iostream>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <sstream>
-#include <ctime>
 
 namespace TOTPGenerator {
     std::string generateTOTP(const std::string &secret, const time_t customTime) {
@@ -41,12 +42,8 @@ namespace TOTPGenerator {
     bool verifyCode(const std::string &secret, const std::string &code) {
         // checks the code validity, taking into consideration a tolerance window
         if (secret.empty()) return false;
-
-        const time_t currentTimestamp = std::time(nullptr);
-        for (int i = -1; i <= 1; i++) {
-            if (generateTOTP(secret, currentTimestamp + i * 30) == code) return true;
-        }
-
+        if (generateTOTP(secret, std::time(nullptr)) == code) return true;
+        //std::cout << "[DEBUG] rec code: " << code << "\n       gen code: " << generateTOTP(secret, std::time(nullptr)) << "\n";
         return false;
     }
 } // namespace TOTPGenerator
