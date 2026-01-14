@@ -18,7 +18,7 @@ PairCommand::PairCommand(std::string d_username):
 
 std::string PairCommand::serialize() const {
     std::stringstream ss;
-    ss << static_cast<int>(CommandType::PAIR);
+    ss << static_cast<int>(CommandType::PAIR_REQ);
 #ifdef D_SERVER
     ss << DELIMITER << m_d_username;
 #endif
@@ -41,7 +41,7 @@ void PairCommand::execute(Context &ctx, const int fd) {
 }
 
 CommandType PairCommand::getType() const {
-    return CommandType::PAIR;
+    return CommandType::PAIR_REQ;
 }
 
 std::string PairCommand::getCode() const {

@@ -26,6 +26,7 @@ namespace Database {
     void removeUser(const std::string &username);
 
     [[nodiscard]] std::optional<std::string> getD_username(const std::string &a_username, const std::string &app_id);
+    [[nodiscard]] std::optional<std::string> getA_username(const std::string &d_username, const std::string &app_id);
     [[nodiscard]] std::map<std::string, std::string> getSecretPairings(const std::string &username);
     void show();
 }

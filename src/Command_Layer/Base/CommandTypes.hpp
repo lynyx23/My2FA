@@ -11,7 +11,7 @@ enum class CommandType : uint8_t {
     PING = 2,
     ERR = 3,
     RESP = 4,
-    PAIR = 5,
+    PAIR_REQ = 5,
     UNKNOWN = 6,
 
     // Credential Login Commands
@@ -21,11 +21,8 @@ enum class CommandType : uint8_t {
     REGISTER_REQ = 14,
 
     // Notification Login Commands
-    REQ_NOTIF_CLIENT = 21,
-    REQ_NOTIF_SERVER = 22,
-    SEND_NOTIF = 23,
-    NOTIF_RESP_CLIENT = 24,
-    NOTIF_RESP_SERVER = 25,
+    REQ_NOTIF = 21,
+    SEND_NOTIF = 22,
 
     // Code Login Commands
     REQ_CODE_CLIENT = 31,
@@ -40,6 +37,9 @@ enum class CommandType : uint8_t {
     REGISTER_RESP = 42,
     PAIR_RESP = 43,
     CODE_CHK_RESP = 44,
+    NOTIF_RESP = 45,
+    NOTIF_LOGIN_RESP = 46,
+
 
     // Others
     EXIT_SCS = 51
@@ -57,11 +57,7 @@ inline std::ostream& operator<<(std::ostream& os, const CommandType& type) {
         case CommandType::LOGOUT_REQ: return os << "LOGOUT_REQ";
         case CommandType::REGISTER_REQ: return os << "REGISTER_REQ";
         case CommandType::REGISTER_RESP: return os << "REGISTER_RESP";
-        case CommandType::REQ_NOTIF_CLIENT: return os << "REQ_NOTIF_CLIENT";
-        case CommandType::REQ_NOTIF_SERVER: return os << "REQ_NOTIF_SERVER";
         case CommandType::SEND_NOTIF: return os << "SEND_NOTIF";
-        case CommandType::NOTIF_RESP_CLIENT: return os << "NOTIF_RESP_CLIENT";
-        case CommandType::NOTIF_RESP_SERVER: return os << "NOTIF_RESP_SERVER";
         case CommandType::REQ_CODE_CLIENT: return os << "REQ_CODE_CLIENT";
         case CommandType::CODE_RESP: return os << "CODE_RESP";
         case CommandType::VALIDATE_CODE_CLIENT: return os << "VALIDATE_CODE_CLIENT";

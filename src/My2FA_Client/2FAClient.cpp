@@ -8,12 +8,7 @@
 #include "Command_Layer/Context.hpp"
 #include "Command_Layer/Credential_Login/CredentialRequestCommand.hpp"
 #include "Command_Layer/Credential_Login/LogoutRequestCommand.hpp"
-#include "Command_Layer/Notification_Login/NotificationLoginCommands.hpp"
-#include "Command_Layer/System_Commands/PairCommand.hpp"
-#include "Command_Layer/System_Commands/SystemCommands.hpp"
 #include "Connection_Layer/ClientConnectionHandler.hpp"
-
-#define PORT 27701
 
 bool checkConsoleInput() {
     fd_set read_set;
@@ -23,11 +18,12 @@ bool checkConsoleInput() {
     return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
 }
 
-uint8_t printCodeState(const uint32_t remainingSeconds, std::map<std::string, std::string> &codes) {
+uint8_t printCodeState(const uint32_t remainingSeconds, std::map<std::string, std::string> &codes,
+        std::vector<Notification> &notifications) {
     constexpr uint8_t width = 30;
     uint8_t lines = 0;
 
-    std::cout << "\r[";
+    std::cout << "\rTime Remaining [";
     for (uint8_t i = 0; i < width; i++) {
         if (i < remainingSeconds) {
             std::cout << "\033[1;92m■\033[0m";
@@ -42,10 +38,25 @@ uint8_t printCodeState(const uint32_t remainingSeconds, std::map<std::string, st
         lines++;
     } else {
         for (const auto &[app_id, code] : codes) {
-            std::cout << "  " << std::left << std::setw(15) << app_id
-                      << ": [\033[1;92m" << code << "\033[0m]   \033[K\n";
+            std::cout << std::left << std::setw(7) << "App Name : " << app_id
+                      << " [\033[1;92m" << code << "\033[0m]   \033[K\n";
             lines++;
         }
+    }
+
+    if (!notifications.empty()) {
+        std::cout << "================================================\033[K\n";
+        lines++;
+        std::cout << "\033[1;33m[!] PENDING NOTIFICATIONS [!]\033[0m\033[K\n";
+        lines++;
+
+        int idx = 1;
+        for (const auto &notification : notifications) {
+            std::cout << " " << idx++ << ". " << notification.appID << "\033[K\n";
+            lines++;
+        }
+        std::cout << " Press ENTER, then type accept;<index> or refuse;<index>!\033[K\n";
+        lines++;
     }
 
     std::cout << std::flush;
@@ -73,7 +84,7 @@ void runCodeState(Context &ctx, ClientConnectionHandler &handler) {
         }
 
         const auto remaining = static_cast<uint32_t>(std::difftime(ctx.timeExpiration, std::time(nullptr)));
-        last_height = printCodeState(remaining, ctx.codes);
+        last_height = printCodeState(remaining, ctx.codes, ctx.pendingNotifications);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     ctx.client_handler->sendCommand(std::make_unique<ExitSCSCommand>());
@@ -108,28 +119,26 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
                       << "  logout                        : Logs out current user (e.g. logout)\n"
                       << "  register <user> <password>    : Register a new user on AuthServer (e.g. register;user;pass)\n"
                       << "  register                      : Register new user (e.g. register;user;pass)\n"
-                      << "  code <uuid> <appid>           : Request 2FA Code (e.g. code;101)\n"
+                      << "  code                          : Request 2FA Code (e.g. code)\n"
                       << "  accept <appid>                : Accept Notification (e.g. accept;101)\n"
                       << "  refuse <appid>                : Refuse Notification (e.g. refuse;101)\n"
                       << "  exit                          : Quit\n";
         }
         return;
-    } else if (args[0] == "reconnect" || args[0] == "exit")
-        return;
-    else if (args[0] == "conn")
-        command = std::make_unique<ConnectCommand>(EntityType::AUTH_CLIENT);
-    else if (args[0] == "accept") {
+    } if (args[0] == "accept") {
         if (args.size() < 2) {
-            std::cerr << "[AC Error] Incorrect format: accept;<appid>\n ";
+            std::cerr << "[AC Error] Incorrect format: accept;<index>\n ";
             return;
         }
-        command = std::make_unique<NotificationResponseClientCommand>(true, std::stoi(args[1]));
+        const std::string reqID = ctx.pendingNotifications.at(std::stoi(args[1]) - 1).reqID;
+        command = std::make_unique<GenericResponseCommand>(CommandType::NOTIF_RESP, true, reqID, "");
     } else if (args[0] == "refuse") {
         if (args.size() < 2) {
-            std::cerr << "[Ac Error] Incorrect format: refuse;<appid>\n ";
+            std::cerr << "[Ac Error] Incorrect format: refuse;<index>\n ";
             return;
         }
-        command = std::make_unique<NotificationResponseClientCommand>(false, std::stoi(args[1]));
+        const std::string reqID = ctx.pendingNotifications.at(std::stoi(args[1]) - 1).reqID;
+        command = std::make_unique<GenericResponseCommand>(CommandType::NOTIF_RESP, false, reqID, "");
     } else if (args[0] == "pair") {
         if (args.size() != 2) {
             std::cerr << "[AC Error] Incorrect format: pair;<token>\n ";
@@ -137,12 +146,12 @@ void handleUserInput(Context &ctx, ClientConnectionHandler *handler, const std::
         }
         command = std::make_unique<ValidateCodeClientCommand>(args[1]);
     } else if (args[0] == "code") {
-        if (args.size() != 2) {
-            std::cerr << "[AC Error] Incorrect format: code;<appid>\n ";
+        if (args.size() > 1) {
+            std::cerr << "[AC Error] Incorrect format: code doesn't take arguments!\n ";
             return;
         }
         try {
-            command = std::make_unique<RequestCodeClientCommand>(args[1]);
+            command = std::make_unique<RequestCodeClientCommand>();
             if (handler && handler->isRunning()) {
                 handler->sendCommand(command);
                 runCodeState(ctx, *handler);
@@ -200,9 +209,21 @@ void handleCommand(Context &ctx, ClientConnectionHandler *handler, const std::un
     }
 }
 
-int main() {
-    constexpr uint32_t AS_PORT = 27701;
-    const std::string IP = "127.0.0.1";
+int main(int argc, char *argv[]) {
+    std::string IP = "127.0.0.1";
+    int AS_PORT = 27701;
+    if (argc == 2) {
+        IP = argv[1];
+    } else if (argc == 3) {
+        IP = argv[1];
+        try {
+            AS_PORT = std::stoi(argv[2]);
+        } catch (std::exception &e) {
+            std::cerr << "[AC Error] Invalid port: " << e.what() << " | " << argv[2] << "\n";
+            return 1;
+        }
+    }
+
 
     Context ctx{false, false, "0", nullptr, false};
 

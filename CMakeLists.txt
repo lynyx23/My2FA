@@ -34,11 +34,11 @@ set(COMMAND_LAYER
         src/Command_Layer/Credential_Login/CredentialLoginCommands.hpp
 
         src/Command_Layer/Notification_Login/NotificationLoginCommands.hpp
-        src/Command_Layer/Notification_Login/RequestNotificationClientCommand.hpp
-        src/Command_Layer/Notification_Login/RequestNotificationServerCommand.hpp
-        src/Command_Layer/Notification_Login/SendNotificationCommand.hpp
-        src/Command_Layer/Notification_Login/NotificationResponseClientCommand.hpp
-        src/Command_Layer/Notification_Login/NotificationResponseServerCommand.hpp
+#        src/Command_Layer/Notification_Login/RequestNotificationClientCommand.hpp
+#        src/Command_Layer/Notification_Login/RequestNotificationServerCommand.hpp
+#        src/Command_Layer/Notification_Login/SendNotificationCommand.hpp
+#        src/Command_Layer/Notification_Login/NotificationResponseClientCommand.hpp
+#        src/Command_Layer/Notification_Login/NotificationResponseServerCommand.hpp
 
         src/Command_Layer/Code_Login/CodeLoginCommands.hpp
         src/Command_Layer/Code_Login/RequestCodeClientCommand.hpp
@@ -63,6 +63,10 @@ set(COMMAND_LAYER
         src/Command_Layer/Code_Login/ExitSCSCommand.hpp
         src/Command_Layer/System_Commands/PairCommand.cpp
         src/Command_Layer/System_Commands/PairCommand.hpp
+        src/Command_Layer/Notification_Login/RequestNotificationCommand.cpp
+        src/Command_Layer/Notification_Login/RequestNotificationCommand.hpp
+        src/Command_Layer/Notification_Login/SendNotificationCommand.cpp
+        src/Command_Layer/Notification_Login/SendNotificationCommand.hpp
 )
 
 add_executable(AuthServer

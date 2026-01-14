@@ -136,6 +136,21 @@ namespace Database {
         }
     }
 
+    std::optional<std::string> getA_username(const std::string &d_username, const std::string &app_id) {
+        if (!db) return std::nullopt;
+        try {
+            SQLite::Statement query(*db, "SELECT a_username FROM pairs WHERE d_username = ? AND app_id = ?");
+            query.bind(1, d_username);
+            query.bind(2, app_id);
+            query.executeStep();
+            std::cout << "[DB Log] Pair found: " << d_username << " - " << query.getColumn(0) << "\n";
+            return query.getColumn(0);
+        } catch (std::exception &e) {
+            std::cerr << "[DB Error] Pair lookup failed: " << e.what() << "\n";
+            return std::nullopt;
+        }
+    }
+
     std::optional<std::string> getSecret(const std::string &d_username, const std::string &app_id) {
         if (!db) return std::nullopt;
         try {

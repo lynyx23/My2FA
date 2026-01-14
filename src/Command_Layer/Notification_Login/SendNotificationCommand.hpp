@@ -1,32 +1,21 @@
 #ifndef MY2FA_SENDNOTIFICATIONCOMMAND_HPP
 #define MY2FA_SENDNOTIFICATIONCOMMAND_HPP
 
-#include <sstream>
-#include "../Base/Command.hpp"
+#include "Command_Layer/Base/Command.hpp"
 
 class SendNotificationCommand : public Command {
-private:
-    const int appid;
-
 public:
-    explicit SendNotificationCommand(const int appid) : appid(appid) {
-    }
+    SendNotificationCommand(std::string reqID, std::string app_id);
 
-    [[nodiscard]] std::string serialize() const override {
-        std::ostringstream ss;
-        ss << static_cast<int>(CommandType::SEND_NOTIF) << DELIMITER << appid;
-        return ss.str();
-    };
+    [[nodiscard]] std::string serialize() const override;
 
-    void execute(Context &ctx, int client_fd) override {};
+    void execute(Context &ctx, int client_fd) override;
 
-    [[nodiscard]] CommandType getType() const override {
-        return CommandType::SEND_NOTIF;
-    }
+    [[nodiscard]] CommandType getType() const override;
 
-    [[nodiscard]] int getAppid() const {
-        return appid;
-    }
+private:
+    const std::string m_req_id;
+    const std::string m_app_id;
 };
 
-#endif //MY2FA_SENDNOTIFICATIONCOMMAND_HPP
+#endif // MY2FA_SENDNOTIFICATIONCOMMAND_HPP

@@ -29,75 +29,20 @@ void handleUserInput(ServerConnectionHandler &handler, const std::string &input,
     auto args = split(input);
     if (args.empty()) return;
 
-    std::unique_ptr<Command> command = nullptr;
+    //std::unique_ptr<Command> command = nullptr;
 
     if (args[0] == "help") {
         std::cout << std::flush
-                  << "  help                                        : Shows this menu\n"
-                  << "  clients                                     : List all active client file descriptors.\n"
-                  << "  send_notif <appid>                          : Send Push to Client (e.g. send_notif;12)\n"
-                  << "  code_resp <code>                            : Send Code to Client (e.g. code_resp;123456)\n"
-                  << "  notif_resp_server <1/0> <uuid>              : Send Push Result to DS (e.g. notif_resp_server;1;user123)\n"
-                  << "  validate_resp_server <1/0> <uuid> <appid>   : Send Code Result to DS (e.g. validate_resp_server;1;user123;12)\n"
-                  << "  exit                                        : Shut down the server.\n";
+                  << "  help       : Shows this menu\n"
+                  << "  clients    : List all active client file descriptors.\n"
+                  << "  db         : Prints all data in DB.\n"
+                  << "  clear      : Clears screen (aliases: cl, cls, clr)"
+                  << "  exit       : Shut down the server.\n";
         return;
-    } else if (args[0] == "clients") {
+    } if (args[0] == "clients") {
         session_manager.displayConnections();
-    } else if (args[0] == "exit") {
-        std::cout << "[AS Log] Shutting down...\n";
-        exit(0);
-    } else if (args[0] == "send_notif") {
-        if (args.size() < 2) {
-            std::cerr << "[AS Error] Usage: send_notif <appid>\n";
-            return;
-        }
-        command = std::make_unique<SendNotificationCommand>(std::stoi(args[1]));
-    // } else if (args[0] == "code_resp") {
-    //     if (args.size() < 2) {
-    //         std::cerr << "[AS Error] Usage: code_resp <code>\n";
-    //         return;
-    //     }
-    //     command = std::make_unique<CodeResponseCommand>(std::stoi(args[1]));
-    } else if (args[0] == "notif_resp_server") {
-        if (args.size() < 3) {
-            std::cerr << "[AS Error] Usage: notif_resp_server <1/0> <uuid>\n";
-            return;
-        }
-        bool resp = (args[1] == "1" || args[1] == "true");
-        command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
-    } else if (args[0] == "validate_resp_server") {
-        if (args.size() < 4) {
-            std::cerr << "[AS Error] Usage: validate_resp_server <1/0> <uuid> <appid>\n";
-            return;
-        }
-        bool resp = (args[1] == "1" || args[1] == "true");
-        command = std::make_unique<ValidateResponseServerCommand>(resp, args[2], args[3]);
     } else {
         std::cerr << "[AS Error] Unknown command. Type 'help'.\n";
-        return;
-    }
-
-    if (command) {
-        const std::string data = command->serialize();
-
-        switch (command->getType()) {
-            case CommandType::SEND_NOTIF:
-            case CommandType::CODE_RESP:
-                std::cout << "[AS -> AC] Sending: " << data << "\n";
-                handler.broadcastCommand(command);
-                break;
-
-            case CommandType::NOTIF_RESP_SERVER:
-            case CommandType::VALIDATE_RESP_SERVER:
-                std::cout << "[AS -> DS] Sending: " << data << "\n";
-                handler.broadcastCommand(command);
-                break;
-
-            default:
-                std::cerr << "[AS Error] No routing rule defined for Command ID "
-                        << static_cast<int>(command->getType()) << "\n";
-                break;
-        }
     }
 }
 
@@ -109,10 +54,18 @@ bool checkConsoleInput() {
     return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
 }
 
-int main() {
-    signal(SIGPIPE, SIG_IGN); // avoid crashes from sending
+int main(int argc, char *argv[]) {
+    int PORT = 27701;
+    if (argc == 2) {
+        try {
+            PORT = std::stoi(argv[1]);
+        } catch (std::exception &e) {
+            std::cerr << "[AC Error] Invalid port: " << e.what() << " | " << argv[2] << "\n";
+            return 1;
+        }
+    }
 
-    constexpr uint32_t PORT = 27701; // Auth port
+    signal(SIGPIPE, SIG_IGN); // avoid crashes from sending
 
     AuthManager auth_manager("as");
     SessionManager session_manager;

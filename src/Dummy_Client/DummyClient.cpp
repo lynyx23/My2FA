@@ -19,10 +19,9 @@ void handleUserInput(Context &ctx, const std::string &input) {
     if (args[0] == "help") {
         std::cout << std::flush
                   << "  help                      : Show this menu\n"
-                  << "  conn <id>                 : Handshake (e.g. conn;dc_01)\n"
-                  << "  login <user> <pass>       : Credential Login (e.g. login;user;pass)\n"
-                  << "  req_notif <uuid>          : Request Notification Login (e.g. req_notif;uuid_1234)\n"
-                  << "  code <code> <uuid>        : Enter Code (e.g. code;123456;uuid_1234)\n"
+                  << "  conn;<id>                 : Handshake (e.g. conn;dc_01)\n"
+                  << "  login;<user>;<pass>       : Credential Login (e.g. login;user;pass)\n"
+                  << "  code;<code>               : Enter 2FA Code (e.g. code;123456)\n"
                   << "  reconnect                 : Reconnect to DS\n"
                   << "  exit                      : Quit\n";
         return;
@@ -55,18 +54,18 @@ void handleUserInput(Context &ctx, const std::string &input) {
             return;
         }
         command = std::make_unique<CredentialRequestCommand>(CommandType::REGISTER_REQ, args[1], args[2]);
-    } else if (args[0] == "req_notif") {
-        if (args.size() != 2) {
-            std::cout << "[DC Error] Usage: req_notif <uuid>\n";
-            return;
-        }
-        command = std::make_unique<RequestNotificationClientCommand>(args[1]);
     } else if (args[0] == "code") {
         if (args.size() != 2) {
             std::cout << "[DC Error] Usage: code;<code>\n";
             return;
         }
         command = std::make_unique<ValidateCodeClientCommand>(args[1]);
+    } else if (args[0] == "notif") {
+        if (args.size() != 2) {
+            std::cout << "[DC Error] Usage: notif;<user>\n";
+            return;
+        }
+        command = std::make_unique<RequestNotificationCommand>(args[1]);
     } else {
         std::cout << "[DC Error] Unknown command! Type help.\n";
         return;
@@ -101,9 +100,20 @@ bool checkConsoleInput() {
     return select(STDIN_FILENO + 1, &read_set, nullptr, nullptr, &timeout) > 0;
 }
 
-int main() {
-    constexpr uint32_t DS_PORT = 27702;
-    const std::string IP = "127.0.0.1";
+int main(int argc, char *argv[]) {
+    std::string IP = "127.0.0.1";
+    int DS_PORT = 27702;
+    if (argc == 2) {
+        IP = argv[1];
+    } else if (argc == 3) {
+        IP = argv[1];
+        try {
+            DS_PORT = std::stoi(argv[2]);
+        } catch (std::exception &e) {
+            std::cerr << "[AC Error] Invalid port: " << e.what() << " | " << argv[2] << "\n";
+            return 1;
+        }
+    }
 
     std::unique_ptr<ClientConnectionHandler> handler = nullptr;
 

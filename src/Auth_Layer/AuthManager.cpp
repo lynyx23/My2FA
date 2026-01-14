@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "Database_Layer/Database.hpp"
+#include "Session_Manager/SessionManager.hpp"
 
 struct OpenSSLFree {
     void operator()(void* ptr) const {
@@ -86,6 +87,20 @@ std::string AuthManager::m_generateToken() {
     return token;
 }
 
+std::string AuthManager::m_generateReqID() const {
+    constexpr char dict[] = "ABCDEFGHIJKLMOPRQSTUVWXYZ0123456789";
+    constexpr uint8_t entropy_len = 5;
+    constexpr uint8_t dict_len = sizeof(dict) - 1;
+
+    std::vector<unsigned char> entropy(entropy_len);
+    RAND_bytes(entropy.data(), entropy_len);
+
+    std::string reqID;
+    for (const unsigned char c : entropy)
+        reqID += dict[c % dict_len];
+    return reqID;
+}
+
 // TODO username and password regex checking
 bool AuthManager::loginUser(const std::string& username, const std::string& password) {
 
@@ -140,6 +155,40 @@ std::optional<std::pair<std::string, std::string>> AuthManager::finishPairing(co
         return pair;
     }
     return std::nullopt;
+}
+
+int AuthManager::startNotification(const std::string &username, const std::string &app_id, std::string &reqID, const int &ds_fd, SessionManager &session_manager) {
+    const auto a_user_resp = Database::getA_username(username, app_id);
+    if (!a_user_resp.has_value()) {
+        std::cerr << "[AM Error] User not found!\n";
+        return -1;
+    }
+    const int ac_fd = session_manager.getIDFromUsername(a_user_resp.value());
+    if (ac_fd <= 0) {
+        std::cerr << "[AM Error] User not logged in!\n";
+        return -1;
+    }
+
+    PendingNotification notification;
+    notification.ds_fd = ds_fd;
+    notification.app_id = app_id;
+    notification.d_username = username;
+    reqID = m_generateReqID();
+    m_pending_notifications[reqID] = notification;
+
+    std::cout << "[AM Log] Notification " << reqID << " created for " << a_user_resp.value() << "\n";
+    return ac_fd;
+}
+
+int AuthManager::finishNotification(const std::string &reqID, std::string &d_username) {
+    if (const auto it = m_pending_notifications.find(reqID); it != m_pending_notifications.end()) {
+        const int ds_fd = it->second.ds_fd;
+        d_username = it->second.d_username;
+        m_pending_notifications.erase(it);
+        return ds_fd;
+    }
+    std::cerr << "[AM Error] Invalid notification ID: " << reqID << "!\n";
+    return -1;
 }
 
 void AuthManager::show() {

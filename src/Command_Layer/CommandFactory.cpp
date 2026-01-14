@@ -55,7 +55,7 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
                 return std::make_unique<ErrorCommand>(stoi(args[1]), args[2]);
             }
             break;
-        case CommandType::PAIR:
+        case CommandType::PAIR_REQ:
 #ifdef D_SERVER
             if (args.size() == 1) {
                 return std::make_unique<PairCommand>();
@@ -76,14 +76,17 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
                 }
             }
         case CommandType::RESP:
-            if (args.size() == 5) {
+            if (args.size() == 4 || args.size() == 5) {
                 bool resp = (args[2] == "1");
+                std::string extra = (args.size() == 5) ? args[4] : "";
                 switch (const auto type = static_cast<CommandType>(stoi(args[1]))) {
                     case CommandType::LOGIN_RESP:
                     case CommandType::REGISTER_RESP:
                     case CommandType::PAIR_RESP:
                     case CommandType::CODE_CHK_RESP:
-                        return std::make_unique<GenericResponseCommand>(type, resp, args[3], args[4]);
+                    case CommandType::NOTIF_LOGIN_RESP:
+                    case CommandType::NOTIF_RESP:
+                        return std::make_unique<GenericResponseCommand>(type, resp, args[3], extra);
                     default:
                         std::cerr << "[CF Error] Invalid response type: " << type << "\n";
                 }
@@ -91,36 +94,22 @@ std::unique_ptr<Command> CommandFactory::create(const std::string &data) {
             break;
         case CommandType::LOGOUT_REQ:
                 return std::make_unique<LogoutRequestCommand>();
-        case CommandType::REQ_NOTIF_CLIENT:
-            if (args.size() == 2) {
-                return std::make_unique<RequestNotificationClientCommand>(args[1]);
-            }
-            break;
-        case CommandType::REQ_NOTIF_SERVER:
-            if (args.size() == 3) {
-                return std::make_unique<RequestNotificationServerCommand>(args[1], stoi(args[2]));
-            }
-            break;
         case CommandType::SEND_NOTIF:
+            if (args.size() == 3) {
+                return std::make_unique<SendNotificationCommand>(args[1], args[2]);
+            }
+            break;
+        case CommandType::REQ_NOTIF:
             if (args.size() == 2) {
-                return std::make_unique<SendNotificationCommand>(stoi(args[1]));
+                return std::make_unique<RequestNotificationCommand>(args[1]);
             }
-            break;
-        case CommandType::NOTIF_RESP_CLIENT:
             if (args.size() == 3) {
-                bool resp = (args[1] == "1");
-                return std::make_unique<NotificationResponseClientCommand>(resp, stoi(args[2]));
-            }
-            break;
-        case CommandType::NOTIF_RESP_SERVER:
-            if (args.size() == 3) {
-                bool resp = (args[1] == "1");
-                return std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
+                return std::make_unique<RequestNotificationCommand>(args[1], args[2]);
             }
             break;
         case CommandType::REQ_CODE_CLIENT:
-            if (args.size() == 2) {
-                return std::make_unique<RequestCodeClientCommand>(args[1]);
+            if (args.size() == 1) {
+                return std::make_unique<RequestCodeClientCommand>();
             }
             break;
         case CommandType::CODE_RESP:

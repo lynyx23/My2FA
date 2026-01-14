@@ -46,32 +46,33 @@ void handleUserInput(Context &ctx, const std::string &input) {
     } else if (args[0] == "reconnect") return;
     else if (args[0] == "clients") {
         ctx.session_manager.displayConnections();
-    } else if (args[0] == "err") {
-        if (args.size() < 3) {
-            std::cout << "[DS Error] Usage: err <code> <msg>\n";
-            return;
-        }
-        command = std::make_unique<ErrorCommand>(std::stoi(args[1]), args[2]);
-    } else if (args[0] == "req_notif_server") {
-        if (args.size() < 3) {
-            std::cout << "[DS Error] Usage: req_notif_server <uuid> <appid>\n";
-            return;
-        }
-        command = std::make_unique<RequestNotificationServerCommand>(args[1], std::stoi(args[2]));
-    } else if (args[0] == "notif_resp_server") {
-        if (args.size() < 3) {
-            std::cout << "[DS Error] Usage: notif_resp_server <1/0> <uuid>\n";
-            return;
-        }
-        bool resp = (args[1] == "1" || args[1] == "true");
-        command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
-    } else if (args[0] == "validate_code_server") {
-        if (args.size() < 4) {
-            std::cout << "[DS Error] Usage: validate_code_server <code> <username> <appid>\n";
-            return;
-        }
-        command = std::make_unique<ValidateCodeServerCommand>(args[1], args[2], args[3]);
-    } else {
+    }
+    // } else if (args[0] == "err") {
+    //     if (args.size() < 3) {
+    //         std::cout << "[DS Error] Usage: err <code> <msg>\n";
+    //         return;
+    //     }
+    //     command = std::make_unique<ErrorCommand>(std::stoi(args[1]), args[2]);
+    // } else if (args[0] == "req_notif_server") {
+    //     if (args.size() < 3) {
+    //         std::cout << "[DS Error] Usage: req_notif_server <uuid> <appid>\n";
+    //         return;
+    //     }
+    //     command = std::make_unique<RequestNotificationServerCommand>(args[1], std::stoi(args[2]));
+    // } else if (args[0] == "notif_resp_server") {
+    //     if (args.size() < 3) {
+    //         std::cout << "[DS Error] Usage: notif_resp_server <1/0> <uuid>\n";
+    //         return;
+    //     }
+    //     bool resp = (args[1] == "1" || args[1] == "true");
+    //     command = std::make_unique<NotificationResponseServerCommand>(resp, args[2]);
+    // } else if (args[0] == "validate_code_server") {
+    //     if (args.size() < 4) {
+    //         std::cout << "[DS Error] Usage: validate_code_server <code> <username> <appid>\n";
+    //         return;
+    //     }
+    //     command = std::make_unique<ValidateCodeServerCommand>(args[1], args[2], args[3]);}
+     else {
         std::cout << "[DS Error] Unknown command! Type help.\n";
         return;
     }
@@ -81,7 +82,6 @@ void handleUserInput(Context &ctx, const std::string &input) {
 
         switch (command->getType()) {
             case CommandType::CONN:
-            case CommandType::REQ_NOTIF_SERVER:
             case CommandType::VALIDATE_CODE_SERVER:
                 // try catch doesn't work
                 if (ctx.client_handler && ctx.client_handler->isRunning()) {
@@ -112,15 +112,23 @@ bool checkConsoleInput() {
 }
 
 int main(int argc, char *argv[]) {
-    uint32_t DS_PORT = 27702;
-    try {
-        DS_PORT = std::stoi(argv[1]);
-    } catch (std::exception &e) {
-        std::cerr << "[DS Error] Invalid port: " << e.what() << " | " << argv[1] << "\n";
+    int DS_PORT = 27702;
+    int AS_PORT = 27701;  // Auth Server Port
+    std::string IP = "127.0.0.1";
+    std::string app_id = "app1";
+
+    if (argc == 5) {
+        IP = argv[1];
+        app_id = argv[4];
+        try {
+            DS_PORT = std::stoi(argv[2]);
+            AS_PORT = std::stoi(argv[3]);
+        } catch (std::exception &e) {
+            std::cerr << "[AC Error] Invalid port: " << e.what() << " | " << argv[2] << "\n";
+            return 1;
+        }
     }
-    constexpr uint32_t AS_PORT = 27701;  // Auth Server Port
-    const std::string app_id = "app1";
-    const std::string IP = "127.0.0.1";
+
 
     signal(SIGPIPE, SIG_IGN); // makes sure the server doesn't crash if it interacts with a dead socket
 

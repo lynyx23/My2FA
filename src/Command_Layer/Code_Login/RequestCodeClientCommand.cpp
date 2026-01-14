@@ -1,18 +1,12 @@
 #include "RequestCodeClientCommand.hpp"
-#include <sstream>
 #ifdef A_SERVER
 #include "Command_Layer/Context.hpp"
 #include "Session_Manager/SessionManager.hpp"
 #include "TOTP_Layer/TOTPManager.hpp"
 #endif
 
-RequestCodeClientCommand::RequestCodeClientCommand(std::string appid)
-        : m_appid(std::move(appid)) {}
-
 std::string RequestCodeClientCommand::serialize() const {
-    std::ostringstream ss;
-    ss << static_cast<int>(CommandType::REQ_CODE_CLIENT) << DELIMITER << m_appid;
-    return ss.str();
+    return std::to_string(static_cast<int>(CommandType::REQ_CODE_CLIENT));
 }
 
 void RequestCodeClientCommand::execute(Context &ctx, int client_fd) {
@@ -29,8 +23,4 @@ void RequestCodeClientCommand::execute(Context &ctx, int client_fd) {
 
 CommandType RequestCodeClientCommand::getType() const {
     return CommandType::REQ_CODE_CLIENT;
-}
-
-std::string RequestCodeClientCommand::getAppid() const {
-    return m_appid;
 }

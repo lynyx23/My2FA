@@ -3,6 +3,8 @@
 
 #pragma once
 #include <string>
+
+#include "Connection_Layer/ClientConnectionHandler.hpp"
 #ifdef A_SERVER
 class SessionManager;
 class AuthManager;
@@ -31,8 +33,26 @@ struct Context {
     std::string app_id;
 };
 #endif
-#if defined(A_CLIENT) || defined(D_CLIENT)
-// Client definition
+#ifdef A_CLIENT
+#include "Connection_Layer/ClientConnectionHandler.hpp"
+
+struct Notification {
+    std::string reqID;
+    std::string appID;
+};
+
+struct Context {
+    bool isLogged;
+    bool isConnected;
+    std::string username;
+    ClientConnectionHandler *client_handler;
+    bool codeState;
+    std::map<std::string, std::string> codes;
+    std::vector<Notification> pendingNotifications;
+    time_t timeExpiration;
+};
+#endif
+#ifdef D_CLIENT
 #include "Connection_Layer/ClientConnectionHandler.hpp"
 
 struct Context {
@@ -40,11 +60,6 @@ struct Context {
     bool isConnected;
     std::string username;
     ClientConnectionHandler *client_handler;
-#ifdef A_CLIENT
-    bool codeState;
-    std::map<std::string, std::string> codes;
-    time_t timeExpiration;
-#endif
 };
 
 #endif

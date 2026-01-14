@@ -1,12 +1,16 @@
 #include "GenericResponseCommand.hpp"
 #include <sstream>
-
 #include "Connection_Layer/ServerConnectionHandler.hpp"
 #include "Session_Manager/SessionManager.hpp"
 #if defined(A_CLIENT) || defined(D_CLIENT)
 #include "Command_Layer/Context.hpp"
+#include "Connection_Layer/ClientConnectionHandler.hpp"
 #elif defined(D_SERVER)
 #include "Command_Layer/Context.hpp"
+#include "Connection_Layer/ClientConnectionHandler.hpp"
+#elif defined(A_SERVER)
+#include "Command_Layer/Context.hpp"
+#include "Auth_Layer/AuthManager.hpp"
 #endif
 
 GenericResponseCommand::GenericResponseCommand(const CommandType type, const bool resp,
@@ -64,6 +68,32 @@ void GenericResponseCommand::execute(Context &ctx, int fd) {
             else std::cerr << "[2FA Check] 2FA Code Login Failed!\n";
 #endif
             break;
+        case CommandType::NOTIF_RESP: {
+#ifdef A_SERVER
+            std::cout << "[DEBUG] MERGE\n";
+            std::string d_username;
+            if (const int ds_fd = ctx.auth_manager->finishNotification(m_msg, d_username); ds_fd > 0) {
+                ctx.server_handler.sendCommand(ds_fd,
+                    std::make_unique<GenericResponseCommand>(CommandType::NOTIF_LOGIN_RESP,
+                            m_resp, m_msg, d_username));
+            }
+            else std::cerr << "[AS Error] Could not find pending notification for client " << m_msg << "!\n";
+#endif
+            break;
+        }
+        case CommandType::NOTIF_LOGIN_RESP: {
+#ifdef D_SERVER
+            const auto dc_fd = ctx.session_manager.getIDFromUsername(m_extra);
+            if (dc_fd > 0) {
+                ctx.server_handler.sendCommand(dc_fd,
+                    std::make_unique<GenericResponseCommand>(CommandType::NOTIF_LOGIN_RESP, m_resp, m_msg, m_extra));
+            }
+#elif defined(D_CLIENT)
+            if (m_resp) std::cout << "\033[118m[Notif Check] Notification Login Successful !\033[0m\n";
+            else std::cerr << "[Notif Check] Notification Login Failed!\n";
+#endif
+            break;
+        }
         default:
             std::cerr << "[Client] Unknown response type!\n";
             break;
